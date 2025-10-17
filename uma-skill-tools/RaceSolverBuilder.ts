@@ -192,8 +192,7 @@ export function buildBaseStats(horseDesc: HorseDesc, mood: Mood) {
 		distanceAptitude: parseAptitude(horseDesc.distanceAptitude, 'distance'),
 		surfaceAptitude: parseAptitude(horseDesc.surfaceAptitude, 'surface'),
 		strategyAptitude: parseAptitude(horseDesc.strategyAptitude, 'strategy'),
-		rawStamina: horseDesc.stamina * motivCoef,
-		rawWisdom: adjustOvercap(horseDesc.wisdom) * motivCoef
+		rawStamina: horseDesc.stamina * motivCoef
 	});
 }
 
@@ -210,8 +209,7 @@ export function buildAdjustedStats(baseStats: HorseParameters, course: CourseDat
 		distanceAptitude: baseStats.distanceAptitude,
 		surfaceAptitude: baseStats.surfaceAptitude,
 		strategyAptitude: baseStats.strategyAptitude,
-		rawStamina: baseStats.rawStamina,
-		rawWisdom: baseStats.rawWisdom
+		rawStamina: baseStats.rawStamina
 	});
 }
 
@@ -248,11 +246,13 @@ function isTarget(self: Perspective, targetType: SkillTarget) {
 }
 
 function buildSkillEffects(skill, perspective: Perspective) {
-	return skill.effects.map(ef => ({
-		type: SkillType.hasOwnProperty(ef.type) && isTarget(perspective, ef.target) ? ef.type : SkillType.Noop,
-		baseDuration: skill.baseDuration / 10000,
-		modifier: ef.modifier / 10000
-	}));
+	// im on a really old version of node and cant use flatMap
+	return skill.effects.reduce((acc,ef) => {
+		if (isTarget(perspective, ef.target) && SkillType.hasOwnProperty(ef.type)) {
+			acc.push({type: ef.type, baseDuration: skill.baseDuration / 10000, modifier: ef.modifier / 10000});
+		}
+		return acc;
+	}, []);
 }
 
 export function buildSkillData(horse: HorseParameters, raceParams: PartialRaceParameters, course: CourseData, wholeCourse: RegionList, parser: {parse: any, tokenize: any}, skillId: string, perspective: Perspective, ignoreNullEffects: boolean = false) {
@@ -392,33 +392,25 @@ export class RaceSolverBuilder {
 	_course: CourseData | null
 	_raceParams: PartialRaceParameters
 	_horse: HorseDesc | null
+	_pacer: HorseDesc | null
 	_pacerSkills: PendingSkill[]
 	_pacerSkillIds: string[]
 	_pacerSpeedUpRate: number
-	_pacerSkillData: SkillData[];
-	_pacerTriggers: Region[][];
 	_rng: SeededRng
-	_seed: number
 	_parser: {parse: any, tokenize: any}
-	_skills: {id: string, p: Perspective, originWisdom?: number}[]
+	_skills: {id: string, p: Perspective}[]
 	_samplePolicyOverride: Map<string, ActivationSamplePolicy>
 	_extraSkillHooks: ((skilldata: SkillData[], horse: HorseParameters, course: CourseData) => void)[]
 	_onSkillActivate: (state: RaceSolver, skillId: string) => void
 	_onSkillDeactivate: (state: RaceSolver, skillId: string) => void
+	_disableRushed: boolean
+	_disableDownhill: boolean
+	_disableSectionModifier: boolean
+	_useEnhancedSpurt: boolean
+	_accuracyMode: boolean
+	_skillCheckChance: boolean
+	_synchronizedSeed: number
 	_posKeepMode: PosKeepMode
-	_mode: string | undefined
-	_skillWisdomCheck: boolean | undefined
-	_rushedKakari: boolean | undefined
-	_competeFight: boolean | undefined
-	_leadCompetition: boolean | undefined
-	_laneMovement: boolean | undefined
-	_duelingRates: {
-		runaway: number,
-		frontRunner: number,
-		paceChaser: number,
-		lateSurger: number,
-		endCloser: number
-	} | undefined
 
 	constructor(readonly nsamples: number) {
 		this._course = null;
@@ -432,32 +424,30 @@ export class RaceSolverBuilder {
 			popularity: 1
 		};
 		this._horse = null;
-		this._pacerSkillData = [];
-		this._pacerTriggers = [];
+		this._pacer = null;
 		this._pacerSkills = [];
 		this._pacerSkillIds = [];
 		this._pacerSpeedUpRate = 100;
-		this._seed = Math.floor(Math.random() * (-1 >>> 0)) >>> 0;
-		this._rng = new Rule30CARng(this._seed);
+		this._rng = new Rule30CARng(Math.floor(Math.random() * (-1 >>> 0)) >>> 0);
 		this._parser = defaultParser;
 		this._skills = [];
 		this._samplePolicyOverride = new Map();
 		this._extraSkillHooks = [];
 		this._onSkillActivate = null;
 		this._onSkillDeactivate = null;
+		this._disableRushed = false;
+		this._disableDownhill = false;
+		this._disableSectionModifier = false;
+		this._useEnhancedSpurt = false;
+		this._accuracyMode = false;
+		this._skillCheckChance = true;
+		this._synchronizedSeed = null;
 		this._posKeepMode = PosKeepMode.None;
-		this._mode = undefined;
-		this._skillWisdomCheck = undefined;
-		this._rushedKakari = undefined;
-		this._competeFight = undefined;
-		this._leadCompetition = undefined;
-		this._laneMovement = undefined;
-		this._duelingRates = undefined;
 	}
 
 	seed(seed: number) {
-		this._seed = seed;
 		this._rng = new Rule30CARng(seed);
+		this._synchronizedSeed = this._rng.int32();
 		return this;
 	}
 
@@ -519,14 +509,87 @@ export class RaceSolverBuilder {
 		this._horse = horse;
 		return this;
 	}
+
+	pacer(horse: HorseDesc, speedUpRate?: number) {
+		this._pacer = horse;
+		if (speedUpRate != null) {
+			this._pacerSpeedUpRate = speedUpRate;
+		}
+		return this;
+	}
 	
 	pacerSpeedUpRate(rate: number) {
 		this._pacerSpeedUpRate = rate;
 		return this;
 	}
 
-	getSamplePolicyKey(skillId: string, perspective: Perspective): string {
-		return `${skillId}:${perspective}`;
+	/**
+	 * Add skills to the pacer/virtual pacemaker.
+	 * Must be called after pacer() or useDefaultPacer().
+	 * @param skillId The skill ID to add to the pacer
+	 * @returns this builder for chaining
+	 */
+	addPacerSkill(skillId: string) {
+		this._pacerSkillIds.push(skillId);
+		return this;
+	}
+
+	/**
+	 * Creates a shared pacer that can be used by multiple RaceSolver instances.
+	 * This allows for proper pacemaker simulation with multiple horses.
+	 * @returns A shared pacer RaceSolver instance
+	 */
+	createSharedPacer(): RaceSolver | null {
+		if (!this._pacer) {
+			return null;
+		}
+
+		const pacerBaseHorse = buildBaseStats(this._pacer, this._pacer.mood);
+		const pacerHorse = buildAdjustedStats(pacerBaseHorse, this._course, this._raceParams.groundCondition);
+
+		const wholeCourse = new RegionList();
+		wholeCourse.push(new Region(0, this._course.distance));
+		Object.freeze(wholeCourse);
+
+		// Build pacer skills from IDs if provided
+		let pacerSkillData: SkillData[] = [];
+		let pacerTriggers: Region[][] = [];
+		if (this._pacerSkillIds.length > 0) {
+			const makePacerSkill = buildSkillData.bind(null, pacerBaseHorse, this._raceParams, this._course, wholeCourse, this._parser);
+			pacerSkillData = this._pacerSkillIds.flatMap(id => makePacerSkill(id, Perspective.Self));
+			pacerTriggers = pacerSkillData.map(sd => {
+				const sp = this._samplePolicyOverride.get(sd.skillId) || sd.samplePolicy;
+				return sp.sample(sd.regions, this.nsamples, this._rng);
+			});
+		}
+
+		// Create pacer skills for the first sample (we'll use the same pacer for all samples)
+		const pacerSkills = pacerSkillData.length > 0
+			? pacerSkillData.map((sd, sdi) => ({
+				skillId: sd.skillId,
+				perspective: sd.perspective,
+				rarity: sd.rarity,
+				trigger: pacerTriggers[sdi][0], // Use first sample
+				extraCondition: sd.extraCondition,
+				effects: sd.effects
+			}))
+			: this._pacerSkills;
+
+		const pacerRng = new Rule30CARng(this._rng.int32());
+		return new RaceSolver({
+			horse: pacerHorse,
+			course: this._course,
+			hp: NoopHpPolicy,
+			skills: pacerSkills,
+			rng: pacerRng,
+			speedUpProbability: this._pacerSpeedUpRate,
+			disableRushed: this._disableRushed,
+			disableDownhill: this._disableDownhill,
+			disableSectionModifier: this._disableSectionModifier,
+			skillCheckChance: this._skillCheckChance,
+			synchronizedSeed: this._synchronizedSeed,
+			posKeepMode: this._posKeepMode
+		});
 	}
 
 	_isNige() {
@@ -537,83 +600,12 @@ export class RaceSolverBuilder {
 		}
 	}
 
-	setupPacer(horse: HorseDesc) {
-		const pacer = horse;
-		const pacerBaseHorse = pacer ? buildBaseStats(pacer, pacer.mood) : null;
-		const pacerHorse = pacer ? buildAdjustedStats(pacerBaseHorse, this._course, this._raceParams.groundCondition) : null;
-
-		const wholeCourse = new RegionList();
-		wholeCourse.push(new Region(0, this._course.distance));
-		Object.freeze(wholeCourse);
-
-		let pacerSkillData: SkillData[] = [];
-		
-		if (pacerBaseHorse) {
-			this._pacerSkillIds = horse.skills;
-			const makePacerSkill = buildSkillData.bind(null, pacerBaseHorse, this._raceParams, this._course, wholeCourse, this._parser);
-			pacerSkillData = this._pacerSkillIds.flatMap(id => makePacerSkill(id, Perspective.Self));
-			this._pacerSkillData = pacerSkillData;
-		}
-
-		return pacerHorse
-	}
-
-	setupPacerSkillTriggers(pacerRng: SeededRng) {
-		const wholeCourse = new RegionList();
-		wholeCourse.push(new Region(0, this._course.distance));
-		Object.freeze(wholeCourse);
-
-		let pacerTriggers: Region[][] = [];
-		
-		if (this._pacerSkillIds.length > 0) {
-			pacerTriggers = this._pacerSkillData.map(sd => {
-				const key = sd.perspective != null ? this.getSamplePolicyKey(sd.skillId, sd.perspective) : sd.skillId;
-				const sp = this._samplePolicyOverride.get(key) || sd.samplePolicy;
-				return sp.sample(sd.regions, this.nsamples, pacerRng);
-			});
-		}
-
-		this._pacerTriggers = pacerTriggers;
-	}
-
-	buildPacer(pacerHorse, i: number, pacerRng: SeededRng): RaceSolver | null {
-		this.setupPacerSkillTriggers(pacerRng);
-
-		const pacerSkills = this._pacerSkillData.length > 0
-			? this._pacerSkillData.map((sd, sdi) => ({
-				skillId: sd.skillId,
-				perspective: sd.perspective,
-				rarity: sd.rarity,
-				trigger: this._pacerTriggers[sdi][i % this._pacerTriggers[sdi].length],
-				extraCondition: sd.extraCondition,
-				effects: sd.effects
-			}))
-			: this._pacerSkills;
-
-		return pacerHorse ? new RaceSolver({
-			horse: pacerHorse,
-			course: this._course,
-			hp: NoopHpPolicy,
-			skills: pacerSkills,
-			rng: pacerRng,
-			speedUpProbability: this._pacerSpeedUpRate,
-			posKeepMode: this._posKeepMode,
-			mode: this._mode,
-			isPacer: true,
-			competeFight: this._competeFight,
-			leadCompetition: this._leadCompetition,
-			duelingRates: this._duelingRates,
-			laneMovement: this._laneMovement
-		}) : null;
-	}
-
-	pacer(horse: HorseDesc) {
-		return this.setupPacer(horse);
-	}
-
 	useDefaultPacer(openingLegAccel: boolean = false) {
-		const pacer = Object.assign({}, this._horse, {strategy: 'Nige'});
+		if (this._isNige()) {
+			return this;
+		}
 
+		this._pacer = Object.assign({}, this._horse, {strategy: 'Nige'});
 		if (openingLegAccel) {
 			// top is jiga and bottom is white sente
 			// arguably it's more realistic to include these, but also a lot of the time they prevent the exact pace down effects
@@ -634,8 +626,7 @@ export class RaceSolverBuilder {
 				effects: [{type: SkillType.Accel, baseDuration: 1.2, modifier: 0.2}]
 			}];
 		}
-
-		return this.setupPacer(pacer);
+		return this;
 	}
 
 	withActivateCountsAsRandom() {
@@ -713,10 +704,10 @@ export class RaceSolverBuilder {
 		return this;
 	}
 
-	addSkill(skillId: string, perspective: Perspective = Perspective.Self, samplePolicy?: ActivationSamplePolicy, originWisdom?: number) {
-		this._skills.push({id: skillId, p: perspective, originWisdom});
+	addSkill(skillId: string, perspective: Perspective = Perspective.Self, samplePolicy?: ActivationSamplePolicy) {
+		this._skills.push({id: skillId, p: perspective});
 		if (samplePolicy != null) {
-			this._samplePolicyOverride.set(this.getSamplePolicyKey(skillId, perspective), samplePolicy);
+			this._samplePolicyOverride.set(skillId, samplePolicy);
 		}
 		return this;
 	}
@@ -729,54 +720,53 @@ export class RaceSolverBuilder {
 	 * @param perspective Whether this skill is for Self or Other (default: Self)
 	 * @returns this builder for chaining
 	 */
-	addSkillAtPosition(skillId: string, position: number, perspective: Perspective = Perspective.Self, originWisdom?: number) {
+	addSkillAtPosition(skillId: string, position: number, perspective: Perspective = Perspective.Self) {
 		const { createFixedPositionPolicy } = require('./ActivationSamplePolicy');
-		return this.addSkill(skillId, perspective, createFixedPositionPolicy(position), originWisdom);
+		return this.addSkill(skillId, perspective, createFixedPositionPolicy(position));
 	}
 	
+	/**
+	 * Disables the rushed status mechanic for this horse.
+	 * When disabled, the horse will never enter the rushed state regardless of wisdom.
+	 * @returns this builder for chaining
+	 */
+	disableRushed() {
+		this._disableRushed = true;
+		return this;
+	}
+
+	/**
+	 * Disables the downhill acceleration mode mechanic for this horse.
+	 * When disabled, the horse will never enter downhill mode regardless of wisdom.
+	 * @returns this builder for chaining
+	 */
+	disableDownhill() {
+		this._disableDownhill = true;
+		return this;
+	}
+
+	disableSectionModifier() {
+		this._disableSectionModifier = true;
+		return this;
+	}
+
+	skillCheckChance(enabled: boolean = true) {
+		this._skillCheckChance = enabled;
+		return this;
+	}
+
+	useEnhancedSpurt(enabled: boolean = true) {
+		this._useEnhancedSpurt = enabled;
+		return this;
+	}
+
+	accuracyMode(enabled: boolean = true) {
+		this._accuracyMode = enabled;
+		return this;
+	}
+
 	posKeepMode(mode: PosKeepMode) {
 		this._posKeepMode = mode;
-		return this;
-	}
-
-	mode(mode: string) {
-		this._mode = mode;
-		return this;
-	}
-
-	skillWisdomCheck(enabled: boolean) {
-		this._skillWisdomCheck = enabled;
-		return this;
-	}
-
-	rushedKakari(enabled: boolean) {
-		this._rushedKakari = enabled;
-		return this;
-	}
-
-	competeFight(enabled: boolean) {
-		this._competeFight = enabled;
-		return this;
-	}
-
-	leadCompetition(enabled: boolean) {
-		this._leadCompetition = enabled;
-		return this;
-	}
-
-	laneMovement(enabled: boolean) {
-		this._laneMovement = enabled;
-		return this;
-	}
-
-	duelingRates(rates: {
-		runaway: number,
-		frontRunner: number,
-		paceChaser: number,
-		lateSurger: number,
-		endCloser: number
-	}) {
-		this._duelingRates = rates;
 		return this;
 	}
 
@@ -790,33 +780,28 @@ export class RaceSolverBuilder {
 		return this;
 	}
 
-	desync() {
-		this.seed(this._rng.int32());
-	}
-
 	fork() {
 		const clone = new RaceSolverBuilder(this.nsamples);
 		clone._course = this._course;
 		clone._raceParams = Object.assign({}, this._raceParams);
 		clone._horse = this._horse;
+		clone._pacer = this._pacer;
 		clone._pacerSkills = this._pacerSkills.slice();  // sharing the skill objects is fine but see the note below
 		clone._pacerSkillIds = this._pacerSkillIds.slice();
 		clone._pacerSpeedUpRate = this._pacerSpeedUpRate;
-		clone._pacerSkillData = this._pacerSkillData.slice();
-		clone._pacerTriggers = this._pacerTriggers.slice();
-		clone.seed(this._seed);
+		clone._rng = new Rule30CARng(this._rng.int32());
 		clone._parser = this._parser;
 		clone._skills = this._skills.slice();
 		clone._onSkillActivate = this._onSkillActivate;
 		clone._onSkillDeactivate = this._onSkillDeactivate;
+		clone._disableRushed = this._disableRushed;
+		clone._disableDownhill = this._disableDownhill;
+		clone._disableSectionModifier = this._disableSectionModifier;
+		clone._useEnhancedSpurt = this._useEnhancedSpurt;
+		clone._accuracyMode = this._accuracyMode;
+		clone._skillCheckChance = this._skillCheckChance;
+		clone._synchronizedSeed = this._synchronizedSeed;
 		clone._posKeepMode = this._posKeepMode;
-		clone._mode = this._mode;
-		clone._skillWisdomCheck = this._skillWisdomCheck;
-		clone._rushedKakari = this._rushedKakari;
-		clone._competeFight = this._competeFight;
-		clone._leadCompetition = this._leadCompetition;
-		clone._laneMovement = this._laneMovement;
-		clone._duelingRates = this._duelingRates;
 
 		// NB. GOTCHA: if asitame is enabled, it closes over *our* horse and mood data, and not the clone's
 		// this is assumed to be fine, since fork() is intended to be used after everything is added except skills,
@@ -828,7 +813,12 @@ export class RaceSolverBuilder {
 
 	*build() {
 		let horse = buildBaseStats(this._horse, this._horse.mood);
-		let skillRng = new Rule30CARng(this._rng.int32());
+		let solverRng = new Rule30CARng(this._rng.int32());
+		let pacerRng = new Rule30CARng(this._rng.int32());  // need this even if _pacer is null in case we forked from/to something with a pacer
+															// (to keep the rngs in sync)
+
+		const pacerBaseHorse = this._pacer ? buildBaseStats(this._pacer, this._pacer.mood) : null;
+		const pacerHorse = this._pacer ? buildAdjustedStats(pacerBaseHorse, this._course, this._raceParams.groundCondition) : null;
 
 		const wholeCourse = new RegionList();
 		wholeCourse.push(new Region(0, this._course.distance));
@@ -838,47 +828,85 @@ export class RaceSolverBuilder {
 		const skilldata = this._skills.flatMap(({id,p}) => makeSkill(id, p));
 		this._extraSkillHooks.forEach(h => h(skilldata, horse, this._course));
 		const triggers = skilldata.map(sd => {
-			const key = sd.perspective != null ? this.getSamplePolicyKey(sd.skillId, sd.perspective) : sd.skillId;
-			const sp = this._samplePolicyOverride.get(key) || sd.samplePolicy;
-			return sp.sample(sd.regions, this.nsamples, skillRng)
+			const sp = this._samplePolicyOverride.get(sd.skillId) || sd.samplePolicy;
+			return sp.sample(sd.regions, this.nsamples, this._rng)
 		});
+
+		// Build pacer skills from IDs if provided
+		let pacerSkillData: SkillData[] = [];
+		let pacerTriggers: Region[][] = [];
+		if (pacerBaseHorse && this._pacerSkillIds.length > 0) {
+			const makePacerSkill = buildSkillData.bind(null, pacerBaseHorse, this._raceParams, this._course, wholeCourse, this._parser);
+			pacerSkillData = this._pacerSkillIds.flatMap(id => makePacerSkill(id, Perspective.Self));
+			pacerTriggers = pacerSkillData.map(sd => {
+				const sp = this._samplePolicyOverride.get(sd.skillId) || sd.samplePolicy;
+				return sp.sample(sd.regions, this.nsamples, this._rng);
+			});
+		}
 
 		// must come after skill activations are decided because conditions like base_power depend on base stats
 		horse = buildAdjustedStats(horse, this._course, this._raceParams.groundCondition);
 
 		for (let i = 0; i < this.nsamples; ++i) {
-			let solverRng = new Rule30CARng(this._rng.int32());
-
 			const skills = skilldata.map((sd,sdi) => ({
 				skillId: sd.skillId,
 				perspective: sd.perspective,
 				rarity: sd.rarity,
 				trigger: triggers[sdi][i % triggers[sdi].length],
 				extraCondition: sd.extraCondition,
-				effects: sd.effects,
-				originWisdom: this._skills[sdi].originWisdom
+				effects: sd.effects
 			}));
 
-			const hpRng = new Rule30CARng(this._rng.int32());
-			const hpPolicy = this._mode === 'compare' ? new GameHpPolicy(this._course, this._raceParams.groundCondition, hpRng) : NoopHpPolicy;
+			// Build pacer skills for this sample
+			const pacerSkills = pacerSkillData.length > 0
+				? pacerSkillData.map((sd, sdi) => ({
+					skillId: sd.skillId,
+					perspective: sd.perspective,
+					rarity: sd.rarity,
+					trigger: pacerTriggers[sdi][i % pacerTriggers[sdi].length],
+					extraCondition: sd.extraCondition,
+					effects: sd.effects
+				}))
+				: this._pacerSkills;
+
+			const pacer = pacerHorse ? new RaceSolver({
+				horse: pacerHorse,
+				course: this._course,
+				hp: NoopHpPolicy,
+				skills: pacerSkills,
+				rng: pacerRng,
+				speedUpProbability: this._pacerSpeedUpRate,
+				disableRushed: this._disableRushed,
+				disableDownhill: this._disableDownhill,
+				disableSectionModifier: this._disableSectionModifier,
+				skillCheckChance: this._skillCheckChance,
+				synchronizedSeed: this._synchronizedSeed,
+				posKeepMode: this._posKeepMode
+			}) : null;
+
+			const hpRng = new Rule30CARng(solverRng.int32());
+			const hpPolicy = this._useEnhancedSpurt
+				? new EnhancedHpPolicy(this._course, this._raceParams.groundCondition, hpRng, this._accuracyMode)
+				: new GameHpPolicy(this._course, this._raceParams.groundCondition, hpRng);
 
 			const redo: boolean = yield new RaceSolver({
 				horse,
 				course: this._course,
 				skills,
+				pacer,
 				hp: hpPolicy,
 				rng: solverRng,
 				onSkillActivate: this._onSkillActivate,
 				onSkillDeactivate: this._onSkillDeactivate,
-				posKeepMode: this._posKeepMode,
-				mode: this._mode,
-				skillWisdomCheck: this._skillWisdomCheck,
-				rushedKakari: this._rushedKakari,
-				competeFight: this._competeFight,
-				leadCompetition: this._leadCompetition,
-				duelingRates: this._duelingRates,
-				laneMovement: this._laneMovement
+				disableRushed: this._disableRushed,
+				disableDownhill: this._disableDownhill,
+				disableSectionModifier: this._disableSectionModifier,
+				skillCheckChance: this._skillCheckChance,
+				synchronizedSeed: this._synchronizedSeed,
+				posKeepMode: this._posKeepMode
 			});
+
+			this._synchronizedSeed += 1;
 
 			if (redo) {
 				--i;

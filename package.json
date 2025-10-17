@@ -3,11 +3,7 @@
   "version": "0.0.1",
   "description": "",
   "main": "index.js",
-    "scripts": {
-       "build": "cd umalator-global && node build.mjs",
-       "serve": "cd umalator-global && node build.mjs --serve 3000",
-       "build:debug": "cd umalator-global && node build.mjs --debug"
-    },
+  "scripts": {},
   "author": "pecan",
   "license": "GPL-3.0-or-later",
   "devDependencies": {
@@ -18,11 +14,11 @@
     "@floating-ui/dom": "^1.7.2",
     "d3": "^7.9.0",
     "immutable": "^5.0.3",
-    "lucide-preact": "^0.562.0",
+    "immutable-sorted": "^0.2.11",
     "posthog-js": "^1.257.0",
-    "prando": "^6.0.1",
     "preact": "^10.18.1",
     "preact-i18n": "^2.4.0-preactx",
+    "seedrandom": "^3.0.5",
     "unassert-cli": "github:unassert-js/unassert-cli"
   }
 }

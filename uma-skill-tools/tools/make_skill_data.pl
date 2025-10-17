@@ -34,6 +34,11 @@ sub patch_modifier {
 	}
 }
 
+my %split_alternatives = (
+	100701 => 1,  # Seirios
+	900701 => 1
+);
+
 my $select = $db->prepare(<<SQL
 SELECT id, rarity,
        precondition_1, condition_1,
@@ -114,7 +119,16 @@ while ($select->fetch) {
 			effects => \@effects_2
 		};
 	}
-	$skills->{$id} = {rarity => $rarity, alternatives => \@triggers};
+	if ($split_alternatives{$id}) {
+		my @discrim = ('', map { '-' . $_ } 1..$#triggers);
+		my %pairs;
+		@pairs{@discrim} = @triggers;
+		for my $k (keys %pairs) {
+			$skills->{$id . $k} = {rarity => $rarity, alternatives => [$pairs{$k}]};
+		}
+	} else {
+		$skills->{$id} = {rarity => $rarity, alternatives => \@triggers};
+	}
 }
 
 my $json = JSON::PP->new;

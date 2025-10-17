@@ -3,64 +3,26 @@ import { useState, useReducer, useMemo, useEffect, useRef } from 'preact/hooks';
 import { IntlProvider, Text, Localizer } from 'preact-i18n';
 import { Set as ImmSet } from 'immutable';
 
-import { Skill } from '../components/SkillList';
-import { SkillPickerModal, ExpandedSkillView } from './SkillPicker';
-import { SkillProcDataDialog } from './SkillProcDataDialog';
+import { SkillList, Skill, ExpandedSkillDetails } from '../components/SkillList';
 
 import { HorseParameters } from '../uma-skill-tools/HorseTypes';
 
-import { SkillSet, HorseState, isDebuffSkill } from './HorseDefTypes';
+import { SkillSet, HorseState } from './HorseDefTypes';
 
 import './HorseDef.css';
 
 import umas from '../umas.json';
 import icons from '../icons.json';
-import skilldata from '../uma-skill-tools/data/skill_data.json';
-import skillmeta from '../skill_meta.json';
+import skills from '../uma-skill-tools/data/skill_data.json';
+
+function skilldata(id: string) {
+	return skills[id.split('-')[0]];
+}
 
 const umaAltIds = Object.keys(umas).flatMap(id => Object.keys(umas[id].outfits));
-
-function baseUmaIdFromOutfitId(outfitId: string): string {
-	const n = Number(outfitId);
-	if (Number.isFinite(n)) return String(Math.floor(n / 100));
-	return outfitId.slice(0, 4);
-}
-
-// Ordered map of groupId -> [skillId, ...] used for SP cost calculation.
-// Skills are sorted by rarity asc then numeric id desc so each group's list
-// represents the upgrade chain from cheapest (index 0) to most expensive.
-const _spSkillGroups = Object.keys(skilldata)
-	.filter(id => (skillmeta as any)[id] != null)
-	.sort((a, b) => skilldata[a].rarity - skilldata[b].rarity || +b - +a)
-	.reduce((groups, id) => {
-		const groupId = (skillmeta as any)[id].groupId;
-		if (groups.has(groupId)) groups.get(groupId)!.push(id);
-		else groups.set(groupId, [id]);
-		return groups;
-	}, new Map<string, string[]>());
-
-function calcSkillSP(skillIds: Iterable<string>): number {
-	const highestByGroup = new Map<string, number>();
-	for (const id of skillIds) {
-		const r = (skilldata as any)[id]?.rarity ?? 1;
-		if (r >= 3 && r <= 5) continue; // unique skills don't count toward SP
-		const groupId = (skillmeta as any)[id]?.groupId;
-		if (!groupId) continue;
-		const group = _spSkillGroups.get(groupId);
-		const idx = group?.indexOf(id) ?? -1;
-		if (idx < 0) continue;
-		if (idx > (highestByGroup.get(groupId) ?? -1)) highestByGroup.set(groupId, idx);
-	}
-	let total = 0;
-	for (const [groupId, idx] of highestByGroup) {
-		const group = _spSkillGroups.get(groupId)!;
-		for (let i = 0; i <= idx; i++) total += (skillmeta as any)[group[i]]?.baseCost ?? 0;
-	}
-	return total;
-}
 const umaNamesForSearch = {};
 umaAltIds.forEach(id => {
-	const u = umas[baseUmaIdFromOutfitId(id)];
+	const u = umas[id.slice(0,4)];
 	umaNamesForSearch[id] = (u.outfits[id] + ' ' + u.name[1]).toUpperCase().replace(/\./g, '');
 });
 
@@ -71,7 +33,7 @@ function searchNames(query) {
 
 export function UmaSelector(props) {
 	const randomMob = useMemo(() => `/uma-tools/icons/mob/trained_mob_chr_icon_${8000 + Math.floor(Math.random() * 624)}_000001_01.png`, []);
-	const u = props.value && umas[baseUmaIdFromOutfitId(props.value)];
+	const u = props.value && umas[props.value.slice(0,4)];
 
 	const input = useRef(null);
 	const suggestionsContainer = useRef(null);
@@ -85,7 +47,7 @@ export function UmaSelector(props) {
 	function confirm(oid) {
 		setOpen(false);
 		props.select(oid);
-		const uname = umas[baseUmaIdFromOutfitId(oid)].name[1];
+		const uname = umas[oid.slice(0,4)].name[1];
 		search(uname);
 		setActiveIdx(-1);
 		if (input.current != null) {
@@ -150,15 +112,18 @@ export function UmaSelector(props) {
 				<img src="/uma-tools/icons/utx_ico_umamusume_00.png" />
 			</div>
 			<div class="umaEpithet"><span>{props.value && u.outfits[props.value]}</span></div>
-			{props.actions && <div class="umaSelectorActions">{props.actions}</div>}
+			<div class="resetButtons">
+				{props.onReset && <button className="resetUmaButton" onClick={props.onReset} title="Reset this horse to default stats and skills">Reset</button>}
+				{props.onResetAll && <button className="resetUmaButton" onClick={props.onResetAll} title="Reset all horses to default stats and skills">Reset All</button>}
+			</div>
 			<div class="umaSelectWrapper">
 				<input type="text" class="umaSelectInput" value={query.input} tabindex={props.tabindex} onInput={handleInput} onKeyDown={handleKeyDown} onFocus={() => setOpen(true)} onBlur={handleBlur} ref={input} />
 				<ul class={`umaSuggestions ${open ? 'open' : ''}`} onMouseDown={handleClick} ref={suggestionsContainer}>
 					{query.suggestions.map((oid, i) => {
-						const uid = baseUmaIdFromOutfitId(oid);
+						const uid = oid.slice(0,4);
 						return (
 							<li key={oid} data-uma-id={oid} class={`umaSuggestion ${i == activeIdx ? 'selected' : ''}`}>
-								<img src={icons[oid]} loading="lazy" /><span>{umas[uid].outfits[oid]} {umas[uid].name[1]}</span>
+								<img src={icons[oid]} /><span>{umas[uid].outfits[oid]} {umas[uid].name[1]}</span>
 							</li>
 						);
 					})}
@@ -187,10 +152,8 @@ function rankForStat(x: number) {
 
 export function Stat(props) {
 	return (
-		<div class="horseStat">
-			<span class="horseStatLabel">{props.label}</span>
-			<img class="horseStatIcon" src={`/uma-tools/icons/status_0${props.statIdx}.png`} />
-			<img class="horseStatRank" src={`/uma-tools/icons/statusrank/ui_statusrank_${(100 + rankForStat(props.value)).toString().slice(1)}.png`} />
+		<div class="horseParam">
+			<img src={`/uma-tools/icons/statusrank/ui_statusrank_${(100 + rankForStat(props.value)).toString().slice(1)}.png`} />
 			<input type="number" min="1" max="2000" value={props.value} tabindex={props.tabindex} onInput={(e) => props.change(+e.currentTarget.value)} />
 		</div>
 	);
@@ -199,7 +162,7 @@ export function Stat(props) {
 const APTITUDES = Object.freeze(['S','A','B','C','D','E','F','G']);
 export function AptitudeIcon(props) {
 	const idx = 7 - APTITUDES.indexOf(props.a);
-	return <img src={`/uma-tools/icons/utx_ico_statusrank_${(100 + idx).toString().slice(1)}.png`} loading="lazy" />;
+	return <img src={`/uma-tools/icons/utx_ico_statusrank_${(100 + idx).toString().slice(1)}.png`} />;
 }
 
 export function AptitudeSelect(props){
@@ -258,11 +221,9 @@ export function MoodSelect(props){
 }
 
 export function StrategySelect(props) {
-	const disabled = props.disabled || false;
 	if (CC_GLOBAL) {
 		return (
-			<select class="horseStrategySelect" value={props.s} tabindex={props.tabindex} disabled={disabled} onInput={(e) => props.setS(e.currentTarget.value)}>
-				<option value="Oonige">Runaway</option>
+			<select class="horseStrategySelect" value={props.s} tabindex={props.tabindex} onInput={(e) => props.setS(e.currentTarget.value)}>
 				<option value="Nige">Front Runner</option>
 				<option value="Senkou">Pace Chaser</option>
 				<option value="Sasi">Late Surger</option>
@@ -271,7 +232,7 @@ export function StrategySelect(props) {
 		);
 	}
 	return (
-		<select class="horseStrategySelect" value={props.s} tabindex={props.tabindex} disabled={disabled} onInput={(e) => props.setS(e.currentTarget.value)}>
+		<select class="horseStrategySelect" value={props.s} tabindex={props.tabindex} onInput={(e) => props.setS(e.currentTarget.value)}>
 			<option value="Nige">逃げ</option>
 			<option value="Senkou">先行</option>
 			<option value="Sasi">差し</option>
@@ -281,50 +242,17 @@ export function StrategySelect(props) {
 	);
 }
 
-const nonUniqueSkills = Object.keys(skilldata).filter(id => skilldata[id].rarity < 3 || skilldata[id].rarity > 5);
-const universallyAccessiblePinks = ['92111091' /* welfare kraft alt pink unique inherit */].concat(Object.keys(skilldata).filter(id => id[0] == '4'));
+const nonUniqueSkills = Object.keys(skills).filter(id => skilldata(id).rarity < 3 || skilldata(id).rarity > 5);
 
-export function isGeneralSkill(id: string) {
-	return skilldata[id].rarity < 3 || universallyAccessiblePinks.indexOf(id) > -1;
+function assertIsSkill(sid: string): asserts sid is keyof typeof skills {
+	console.assert(skilldata(sid) != null);
 }
 
-function assertIsSkill(sid: string): asserts sid is keyof typeof skilldata {
-	console.assert(skilldata[sid] != null);
-}
-
-function isKnownSkillId(sid: string): sid is keyof typeof skilldata {
-	return (skilldata as any)[sid] != null && (skillmeta as any)[sid] != null;
-}
-
-const uniqueSkillOverrides: Partial<Record<typeof umaAltIds[number], keyof typeof skilldata>> = {
-	// These alt outfits keep their original unique skill IDs.
-	'103102': '100311', // Ines Fujin [MELTY GIFT]
-	'107202': '100721', // Yaeno Muteki [黒将Zen]
-};
-
-function uniqueSkillForUma(oid: typeof umaAltIds[number]): keyof typeof skilldata {
-	const override = uniqueSkillOverrides[oid];
-	if (override) {
-		return override;
-	}
-
+function uniqueSkillForUma(oid: typeof umaAltIds[number]): keyof typeof skills {
 	const i = +oid.slice(1, -2), v = +oid.slice(-2);
 	const sid = (100000 + 10000 * (v - 1) + i * 10 + 1).toString();
-	if (isKnownSkillId(sid)) return sid;
-
-	// Newer global outfits can expose evo unique IDs directly.
-	const fallbackCandidates = [`${oid}111`, `${oid}211`, `${oid}221`];
-	for (const candidate of fallbackCandidates) {
-		if (isKnownSkillId(candidate)) return candidate;
-	}
-
 	assertIsSkill(sid);
 	return sid;
-}
-
-function skillOrder(a: string, b: string) {
-	const x = skillmeta[a].order, y = skillmeta[b].order;
-	return +(y < x) - +(x < y) || +(b < a) - +(a < b);
 }
 
 let totalTabs = 0;
@@ -336,7 +264,6 @@ export function HorseDef(props) {
 	const {state, setState} = props;
 	const [skillPickerOpen, setSkillPickerOpen] = useState(false);
 	const [expanded, setExpanded] = useState(() => ImmSet());
-	const [procDataSkillId, setProcDataSkillId] = useState<string | null>(null);
 
 	const tabstart = props.tabstart();
 	let tabi = 0;
@@ -346,7 +273,7 @@ export function HorseDef(props) {
 	}
 
 	const umaId = state.outfitId;
-	const selectableSkills = useMemo(() => nonUniqueSkills.filter(id => skilldata[id].rarity != 6 || id.startsWith(umaId) || universallyAccessiblePinks.indexOf(id) != -1), [umaId]);
+	const selectableSkills = useMemo(() => nonUniqueSkills.filter(id => skilldata(id).rarity != 6 || id.startsWith(umaId)), [umaId]);
 
 	function setter(prop: keyof HorseState) {
 		return (x) => setState(state.set(prop, x));
@@ -354,25 +281,16 @@ export function HorseDef(props) {
 	const setSkills = setter('skills');
 
 	function setUma(id) {
-		let newSkills = state.skills.filter(isGeneralSkill);
-
-		if (id) {
-			const uid = uniqueSkillForUma(id);
-			const g = (skillmeta as any)[uid]?.groupId;
-			if (g != null) newSkills = newSkills.set(g, uid);
-		}
-
-		const removedSkillIds = state.skills.keySeq().toSet().subtract(newSkills.keySeq().toSet());
-		let newForcedPositions = state.forcedSkillPositions;
-		removedSkillIds.forEach(skillId => {
-			newForcedPositions = newForcedPositions.delete(skillId);
-		});
-
+		let newSkills = state.skills.filter(id => skilldata(id).rarity < 3);
+		if (id) newSkills = newSkills.add(uniqueSkillForUma(id));
 		setState(
 			state.set('outfitId', id)
 				.set('skills', newSkills)
-				.set('forcedSkillPositions', newForcedPositions)
 		);
+	}
+
+	function resetThisHorse() {
+		setState(new HorseState());
 	}
 
 	function openSkillPicker(e) {
@@ -380,32 +298,21 @@ export function HorseDef(props) {
 		setSkillPickerOpen(true);
 	}
 
-	function handlePickerSelect(skillId: string) {
-		const groupId = (skillmeta as any)[skillId]?.groupId;
-		if (!groupId) return;
-		let newSkills;
-		if (isDebuffSkill(skillId)) {
-			const ndebuffs = state.skills.count(isDebuffSkill);
-			newSkills = state.skills.set(groupId + '-' + ndebuffs, skillId);
-		} else {
-			newSkills = state.skills.set(groupId, skillId);
-		}
-		setSkills(newSkills);
+	function setSkillsAndClose(ids) {
+		setSkills(SkillSet(ids));
+		setSkillPickerOpen(false);
 	}
 
 	function handleSkillClick(e) {
 		e.stopPropagation();
+		// Don't toggle expansion if clicking on position input
 		if (e.target.classList.contains('forcedPositionInput')) {
 			return;
 		}
 		const se = e.target.closest('.skill, .expandedSkill');
 		if (se == null) return;
 		if (e.target.classList.contains('skillDismiss')) {
-			const skillId = se.dataset.skillid;
-			setState(
-				state.set('skills', state.skills.delete(state.skills.findKey(id => id == skillId)))
-					.set('forcedSkillPositions', state.forcedSkillPositions.delete(skillId))
-			);
+			setSkills(state.skills.delete(se.dataset.skillid))
 		} else if (se.classList.contains('expandedSkill')) {
 			setExpanded(expanded.delete(se.dataset.skillid));
 		} else {
@@ -416,8 +323,10 @@ export function HorseDef(props) {
 	function handlePositionChange(skillId: string, value: string) {
 		const numValue = parseFloat(value);
 		if (value === '' || isNaN(numValue)) {
+			// Clear the forced position
 			setState(state.set('forcedSkillPositions', state.forcedSkillPositions.delete(skillId)));
 		} else {
+			// Set the forced position
 			setState(state.set('forcedSkillPositions', state.forcedSkillPositions.set(skillId, numValue)));
 		}
 	}
@@ -430,111 +339,96 @@ export function HorseDef(props) {
 		);
 	}, [expanded]);
 
-	useEffect(function () {
-		const currentSkillIds = state.skills.valueSeq().toSet();
-		const forcedPositionSkillIds = state.forcedSkillPositions.keySeq().toSet();
-		const orphanedSkillIds = forcedPositionSkillIds.subtract(currentSkillIds);
-		if (orphanedSkillIds.size > 0) {
-			let newForcedPositions = state.forcedSkillPositions;
-			orphanedSkillIds.forEach(skillId => {
-				newForcedPositions = newForcedPositions.delete(skillId);
-			});
-			setState(state.set('forcedSkillPositions', newForcedPositions));
-		}
-	}, [state.skills]);
-
-	const hasRunawaySkill = state.skills.has('202051');
-	useEffect(function () {
-		if (hasRunawaySkill && state.strategy !== 'Oonige') {
-			setState(state.set('strategy', 'Oonige'));
-		}
-	}, [hasRunawaySkill, state.strategy]);
-
 	const skillList = useMemo(function () {
 		const u = uniqueSkillForUma(umaId);
-		const hasRunData = props.runData != null && props.umaIndex != null;
-		return Array.from(state.skills.values() as Iterable<string>).sort(skillOrder).map(id =>
+		return Array.from(state.skills).map(id =>
 			expanded.has(id)
 				? <li key={id} class="horseExpandedSkill">
-					  <ExpandedSkillView
-						  id={id}
-						  distanceFactor={props.courseDistance}
-						  dismissable={id != u}
-						  forcedPosition={state.forcedSkillPositions.get(id) || ''}
-						  onPositionChange={(value: string) => handlePositionChange(id, value)}
-						  runData={hasRunData ? props.runData : null}
-						  umaIndex={hasRunData ? props.umaIndex : null}
-						  onViewProcData={hasRunData ? () => setProcDataSkillId(id) : null}
-					  />
+					  <ExpandedSkillDetails id={id} distanceFactor={props.courseDistance} dismissable={id != u} />
+					  <div class="forcedPositionWrapper">
+						  <label class="forcedPositionLabel">Force @ position (m):</label>
+						  <input 
+							  type="number" 
+							  class="forcedPositionInput"
+							  placeholder="Optional"
+							  value={state.forcedSkillPositions.get(id) || ''}
+							  onInput={(e) => handlePositionChange(id, (e.target as HTMLInputElement).value)}
+							  onClick={(e) => e.stopPropagation()}
+							  min="0"
+							  step="10"
+						  />
+					  </div>
 				  </li>
 				: <li key={id} style="">
 					  <Skill id={id} selected={false} dismissable={id != u} />
-					  {state.forcedSkillPositions.has(id) && (
-						  <span class="forcedPositionLabel inline">
-							  @{state.forcedSkillPositions.get(id)}m
-						  </span>
-					  )}
+					  <input 
+						  type="number" 
+						  class="forcedPositionInput inline"
+						  placeholder="@m"
+						  title="Force skill activation at this position (in meters)"
+						  value={state.forcedSkillPositions.get(id) || ''}
+						  onInput={(e) => handlePositionChange(id, (e.target as HTMLInputElement).value)}
+						  onClick={(e) => e.stopPropagation()}
+						  min="0"
+						  step="10"
+					  />
 				  </li>
 		);
-	}, [state.skills, umaId, expanded, props.courseDistance, state.forcedSkillPositions, props.runData, props.umaIndex]);
+	}, [state.skills, umaId, expanded, props.courseDistance, state.forcedSkillPositions]);
 
 	return (
 		<div class="horseDef">
 			<div class="horseDefHeader">{props.children}</div>
-			<UmaSelector value={umaId} select={setUma} tabindex={tabnext()} actions={props.headerActions} />
-			<div class="horseStats">
-				<Stat value={state.speed} change={setter('speed')} tabindex={tabnext()} label="Speed" statIdx={0} />
-				<Stat value={state.stamina} change={setter('stamina')} tabindex={tabnext()} label="Stamina" statIdx={1} />
-				<Stat value={state.power} change={setter('power')} tabindex={tabnext()} label="Power" statIdx={2} />
-				<Stat value={state.guts} change={setter('guts')} tabindex={tabnext()} label="Guts" statIdx={3} />
-				<Stat value={state.wisdom} change={setter('wisdom')} tabindex={tabnext()} label={CC_GLOBAL ? 'Wit' : 'Wisdom'} statIdx={4} />
+			<UmaSelector value={umaId} select={setUma} tabindex={tabnext()} onReset={resetThisHorse} onResetAll={props.onResetAll} />
+			<div class="horseParams">
+				<div class="horseParamHeader"><img src="/uma-tools/icons/status_00.png" /><span>Speed</span></div>
+				<div class="horseParamHeader"><img src="/uma-tools/icons/status_01.png" /><span>Stamina</span></div>
+				<div class="horseParamHeader"><img src="/uma-tools/icons/status_02.png" /><span>Power</span></div>
+				<div class="horseParamHeader"><img src="/uma-tools/icons/status_03.png" /><span>Guts</span></div>
+				<div class="horseParamHeader"><img src="/uma-tools/icons/status_04.png" /><span>{CC_GLOBAL?'Wit':'Wisdom'}</span></div>
+				<Stat value={state.speed} change={setter('speed')} tabindex={tabnext()} />
+				<Stat value={state.stamina} change={setter('stamina')} tabindex={tabnext()} />
+				<Stat value={state.power} change={setter('power')} tabindex={tabnext()} />
+				<Stat value={state.guts} change={setter('guts')} tabindex={tabnext()} />
+				<Stat value={state.wisdom} change={setter('wisdom')} tabindex={tabnext()} />
 			</div>
-		<div class="horseApts">
-			<div class="horseAptCell horseAptCell--run">
-				<span class="horseAptLabel">{CC_GLOBAL ? 'Strategy' : 'Run Style'}</span>
-				<StrategySelect s={state.strategy} setS={setter('strategy')} disabled={hasRunawaySkill} tabindex={tabnext()} />
+			<div class="horseAptitudes">
+				<div>
+					<span>Surface aptitude:</span>
+					<AptitudeSelect a={state.surfaceAptitude} setA={setter('surfaceAptitude')} tabindex={tabnext()} />
+				</div>
+				<div>
+					<span>Distance aptitude:</span>
+					<AptitudeSelect a={state.distanceAptitude} setA={setter('distanceAptitude')} tabindex={tabnext()} />
+				</div>
+				<div>
+					<span>Mood:</span>
+					<MoodSelect m={state.mood} setM={setter('mood')} tabindex={tabnext()} />
+				</div>
+				<div>
+					<span>{CC_GLOBAL ? 'Style:' : 'Strategy:'}</span>
+					<StrategySelect s={state.strategy} setS={setter('strategy')} tabindex={tabnext()} />
+				</div>
+				<div>
+					<span>{CC_GLOBAL ? 'Style aptitude:' : 'Strategy aptitude:'}</span>
+					<AptitudeSelect a={state.strategyAptitude} setA={setter('strategyAptitude')} tabindex={tabnext()} />
+				</div>
 			</div>
-			<div class="horseAptCell horseAptCell--fixed">
-				<span class="horseAptLabel">Surf</span>
-				<AptitudeSelect a={state.surfaceAptitude} setA={setter('surfaceAptitude')} tabindex={tabnext()} />
+			<div class="horseSkillHeader">Skills</div>
+			<div class="horseSkillListWrapper" onClick={handleSkillClick}>
+				<ul class="horseSkillList">
+					{skillList}
+					<li key="add">
+						<div class="skill addSkillButton" onClick={openSkillPicker} tabindex={tabnext()}>
+							<span>+</span>Add Skill
+						</div>
+					</li>
+				</ul>
 			</div>
-			<div class="horseAptCell horseAptCell--fixed">
-				<span class="horseAptLabel">Dist</span>
-				<AptitudeSelect a={state.distanceAptitude} setA={setter('distanceAptitude')} tabindex={tabnext()} />
+			<div class={`horseSkillPickerOverlay ${skillPickerOpen ? "open" : ""}`} onClick={setSkillPickerOpen.bind(null, false)} />
+			<div class={`horseSkillPickerWrapper ${skillPickerOpen ? "open" : ""}`}>
+				<SkillList ids={selectableSkills} selected={new Set(state.skills)} setSelected={setSkillsAndClose} isOpen={skillPickerOpen} />
 			</div>
-			<div class="horseAptCell horseAptCell--fixed">
-				<span class="horseAptLabel">{CC_GLOBAL ? 'Style' : 'Strat'}</span>
-				<AptitudeSelect a={state.strategyAptitude} setA={setter('strategyAptitude')} tabindex={tabnext()} />
-			</div>
-			<div class="horseAptCell horseAptCell--fixed">
-				<span class="horseAptLabel">Mood</span>
-				<MoodSelect m={state.mood} setM={setter('mood')} tabindex={tabnext()} />
-			</div>
-		</div>
-	<div class="horseSectionLabel">Skills</div>
-		<div class="horseSkillListWrapper" onClick={handleSkillClick}>
-			<ul class="horseSkillPills">
-				{skillList}
-			</ul>
-			<button class="horseAddSkillBtn" onClick={openSkillPicker} tabindex={tabnext()}>+ Add Skill</button>
-		</div>
-		<div class="horseTotalSP">Total SP: <strong>{calcSkillSP(state.skills.values()).toLocaleString()}</strong></div>
-		<SkillPickerModal
-			isOpen={skillPickerOpen}
-			onClose={() => setSkillPickerOpen(false)}
-			onSelect={handlePickerSelect}
-			selectedSkills={Array.from(state.skills.values() as Iterable<string>)}
-			availableSkillIds={selectableSkills}
-		/>
-		{procDataSkillId && props.runData != null && props.umaIndex != null && (
-			<SkillProcDataDialog
-				skillId={procDataSkillId}
-				compareRunData={props.runData}
-				courseDistance={props.courseDistance}
-				umaIndex={props.umaIndex}
-				onClose={() => setProcDataSkillId(null)}
-			/>
-		)}
 		</div>
 	);
 }

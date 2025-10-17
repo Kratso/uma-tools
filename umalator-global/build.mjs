@@ -1,5 +1,4 @@
 import * as esbuild from 'esbuild';
-import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as http from 'node:http';
@@ -18,7 +17,7 @@ const serve = port != null;
 const debug = !!options.debug;
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.join(dirname, '..');
+const root = path.join(dirname, '..', '..');
 
 const redirectData = {
 	name: 'redirectData',
@@ -58,45 +57,6 @@ const redirectTable = {
 	}
 };
 
-const seedrandomPlugin = {
-	name: 'seedrandomPlugin',
-	setup(build) {
-		build.onResolve({filter: /^seedrandom$/}, args => ({
-			path: args.path,
-			namespace: 'seedrandom-ns'
-		}));
-		build.onLoad({filter: /.*/, namespace: 'seedrandom-ns'}, () => ({
-			contents: `
-// Simple seedrandom implementation for browser
-export default function seedrandom(seed) {
-	let x = 0;
-	let y = 0;
-	let z = 0;
-	let w = 0;
-
-	function next() {
-		const t = x ^ (x << 11);
-		x = y;
-		y = z;
-		z = w;
-		w = w ^ (w >>> 19) ^ (t ^ (t >>> 8));
-		return (w >>> 0) / 0x100000000;
-	}
-
-	// Simple seed initialization
-	const str = seed.toString();
-	for (let i = 0; i < str.length; i++) {
-		x = (x * 31 + str.charCodeAt(i)) >>> 0;
-	}
-
-	return next;
-}
-			`,
-			loader: 'js'
-		}));
-	}
-};
-
 const buildOptions = {
 	entryPoints: [{in: '../umalator/app.tsx', out: 'bundle'}, '../umalator/simulator.worker.ts'],
 	bundle: true,
@@ -105,7 +65,7 @@ const buildOptions = {
 	write: !serve,
 	define: {CC_DEBUG: debug.toString(), CC_GLOBAL: 'true'},
 	external: ['*.ttf'],
-	plugins: [redirectData, mockAssert, redirectTable, seedrandomPlugin]
+	plugins: [redirectData, mockAssert, redirectTable]
 };
 
 const MIME_TYPES = {
@@ -130,9 +90,7 @@ function runServer(ctx, port) {
 	// client makes two requests for simulator.worker.js, avoid rebuilding on the second one
 	let workerState = 0;
 	http.createServer(async (req, res) => {
-		const requestUrl = req.url || '/';
-		const pathOnly = requestUrl.split('?')[0];
-		const url = pathOnly.endsWith('/') ? pathOnly + 'index.html' : pathOnly;
+		const url = req.url.endsWith('/') ? req.url + 'index.html' : req.url;
 		const filename = path.basename(url);
 		if (ARTIFACTS.indexOf(filename) > -1) {
 			const requestN = requestCount.get(filename) + (filename == 'simulator.worker.js' ? (workerState = +!workerState) : 1);
@@ -156,19 +114,11 @@ function runServer(ctx, port) {
 				'Content-length': artifact.length
 			}).end(artifact);
 		} else {
-			const relativeUrl = url
-				.replace(/^\/uma-tools\//, '/')
-				.replace(/^\/+/, '');
-			let fp = path.join(root, relativeUrl);
-			let stat = await fs.promises.stat(fp).catch(() => null);
-			if (stat?.isDirectory()) {
-				fp = path.join(fp, 'index.html');
-				stat = await fs.promises.stat(fp).catch(() => null);
-			}
-			const exists = !!stat?.isFile();
+			const fp = path.join(root, url);
+			const exists = await fs.promises.access(fp).then(() => true, () => false);
 			if (exists) {
 				console.log(`GET ${req.url} 200 OK`);
-				res.writeHead(200, {'Content-type': MIME_TYPES[path.extname(fp)] || 'application/octet-stream'});
+				res.writeHead(200, {'Content-type': MIME_TYPES[path.extname(filename)] || 'application/octet-stream'});
 				fs.createReadStream(fp).pipe(res);
 			} else {
 				console.log(`GET ${req.url} 404 Not Found`)
@@ -184,12 +134,4 @@ if (serve) {
 	console.log(`Serving on http://[::]:${port}/ ...`);
 } else {
 	await esbuild.build(buildOptions);
-
-	const jsHash = crypto.createHash('md5').update(fs.readFileSync(path.join(dirname, 'bundle.js'))).digest('hex').slice(0, 8);
-	const cssHash = crypto.createHash('md5').update(fs.readFileSync(path.join(dirname, 'bundle.css'))).digest('hex').slice(0, 8);
-	const indexPath = path.join(dirname, 'index.html');
-	let html = fs.readFileSync(indexPath, 'utf8');
-	html = html.replace(/bundle\.css(\?v=[a-f0-9]+)?/, `bundle.css?v=${cssHash}`);
-	html = html.replace(/bundle\.js(\?v=[a-f0-9]+)?/, `bundle.js?v=${jsHash}`);
-	fs.writeFileSync(indexPath, html);
 }

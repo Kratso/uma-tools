@@ -1,5 +1,5 @@
 import { h, Fragment } from 'preact';
-import { useState, useMemo, useId, useRef } from 'preact/hooks';
+import { useState, useMemo, useId } from 'preact/hooks';
 import { Text, Localizer } from 'preact-i18n';
 
 import {
@@ -18,43 +18,12 @@ import { runComparison } from './compare';
 
 import './BasinnChart.css';
 
-import skilldata from '../uma-skill-tools/data/skill_data.json';
 import skillnames from '../uma-skill-tools/data/skillnames.json';
-import skillmeta from '../skill_meta.json';
-import umas from '../umas.json';
-import icons from '../icons.json';
+import skill_meta from '../skill_meta.json';
 
-export function isPurpleSkill(id) {
-	const iconId = skillmeta[id].iconId;
-	return iconId[iconId.length-1] == '4';
-}
-
-export function isHpOnlySkill(id: string): boolean {
-	const skill = skilldata[id];
-	if (!skill) return false;
-	// Recovery = type 9; keep skills that have any non-Recovery effect (e.g. TargetSpeed)
-	return skill.alternatives.every((alt: any) => alt.effects.every((ef: any) => ef.type === 9));
-}
-
-function umaForUniqueSkill(skillId: string): string | null {
-	const sid = parseInt(skillId);
-	if (sid < 100000 || sid >= 200000) return null;
-	
-	const remainder = sid - 100001;
-	if (remainder < 0) return null;
-	
-	const i = Math.floor(remainder / 10) % 1000;
-	const v = Math.floor(remainder / 10 / 1000) + 1;
-	
-	const umaId = i.toString().padStart(3, '0');
-	const baseUmaId = `1${umaId}`;
-	const outfitId = `${baseUmaId}${v.toString().padStart(2, '0')}`;
-	
-	if (umas[baseUmaId] && umas[baseUmaId].outfits[outfitId]) {
-		return outfitId;
-	}
-	
-	return null;
+function skillmeta(id: string) {
+	// handle the fake skills (e.g., variations of Sirius unique) inserted by make_skill_data with ids like 100701-1
+	return skill_meta[id.split('-')[0]];
 }
 
 export function getActivateableSkills(skills: string[], horse: HorseState, course: CourseData, racedef: RaceParameters) {
@@ -82,24 +51,10 @@ function formatBasinn(info) {
 }
 
 function SkillNameCell(props) {
-	const { id, showUmaIcons = false } = props;
-	
-	if (showUmaIcons) {
-		const umaId = umaForUniqueSkill(id);
-		if (umaId && icons[umaId]) {
-			return (
-				<div class="chartSkillName">
-					<img src={icons[umaId]} />
-					<span><Text id={`skillnames.${id}`} /></span>
-				</div>
-			);
-		}
-	}
-	
 	return (
 		<div class="chartSkillName">
-			<img src={`/uma-tools/icons/${skillmeta[id].iconId}.png`} />
-			<span><Text id={`skillnames.${id}`} /></span>
+			<img src={`/uma-tools/icons/${skillmeta(props.id).iconId}.png`} />
+			<span><Text id={`skillnames.${props.id}`} /></span>
 		</div>
 	);
 }
@@ -119,30 +74,18 @@ function headerRenderer(radioGroup, selectedType, type, text, onClick) {
 
 export function BasinnChart(props) {
 	const radioGroup = useId();
-	const [expanded, setExpanded] = useState('');
-	const [selectedType, setSelectedType] = useState('median');
-	const clickTimeoutRef = useRef(null);
-	const lastClickRef = useRef({id: '', time: 0});
+	const [selected, setSelected] = useState('');
+	const [selectedType, setSelectedType] = useState('mean');
 
 	function headerClick(type) {
 		setSelectedType(type);
 		props.onRunTypeChange(type + 'run');
 	}
 
-	function toggleExpand(skillId) {
-		if (expanded === skillId) {
-			setExpanded('');
-			props.onSelectionChange('');
-		} else {
-			setExpanded(skillId);
-			props.onSelectionChange(skillId);
-		}
-	}
-
 	const columns = useMemo(() => [{
 		header: () => <span>Skill name</span>,
 		accessorKey: 'id',
-		cell: (info) => <SkillNameCell id={info.getValue()} showUmaIcons={props.showUmaIcons} />,
+		cell: (info) => <SkillNameCell id={info.getValue()} />,
 		sortingFn: (a,b,_) => skillnames[a] < skillnames[b] ? -1 : 1
 	}, {
 		header: headerRenderer(radioGroup, selectedType, 'min', 'Minimum', headerClick),
@@ -163,9 +106,9 @@ export function BasinnChart(props) {
 		accessorKey: 'median',
 		cell: formatBasinn,
 		sortDescFirst: true
-	}], [selectedType, props.showUmaIcons]);
+	}], [selectedType]);
 
-	const [sorting, setSorting] = useState<SortingState>([{id: 'median', desc: true}]);
+	const [sorting, setSorting] = useState<SortingState>([{id: 'mean', desc: true}]);
 
 	const table = useTable({
 		_features: tableFeatures({rowSortingFeature}),
@@ -184,52 +127,22 @@ export function BasinnChart(props) {
 		const id = tr.dataset.skillid;
 		if (e.target.tagName == 'IMG') {
 			props.onInfoClick(id);
-			return;
+		} else {
+			setSelected(id);
+			props.onSelectionChange(id);
 		}
-		
-		const now = Date.now();
-		const isDoubleClick = lastClickRef.current.id === id && (now - lastClickRef.current.time) < 300;
-		
-		if (clickTimeoutRef.current) {
-			clearTimeout(clickTimeoutRef.current);
-			clickTimeoutRef.current = null;
-			if (!isDoubleClick) {
-				toggleExpand(id);
-			}
-			return;
-		}
-		
-		lastClickRef.current = {id, time: now};
-		clickTimeoutRef.current = setTimeout(() => {
-			clickTimeoutRef.current = null;
-			if (lastClickRef.current.id === id && (Date.now() - lastClickRef.current.time) >= 300) {
-				toggleExpand(id);
-			}
-		}, 300);
 	}
 
 	function handleDblClick(e) {
-		if (clickTimeoutRef.current) {
-			clearTimeout(clickTimeoutRef.current);
-			clickTimeoutRef.current = null;
-		}
 		const tr = e.target.closest('tr');
 		if (tr == null) return;
 		e.stopPropagation();
-		e.preventDefault();
 		const id = tr.dataset.skillid;
-		if (e.target.tagName == 'IMG') {
-			return;
-		}
-		if (expanded === id) {
-			return;
-		}
-		lastClickRef.current = {id: '', time: 0};
 		props.onDblClickRow(id);
 	}
 
 	return (
-		<div class={`basinnChartWrapper${props.dirty ? ' dirty' : ''}`}>
+		<div class="basinnChartWrapper">
 			<table class="basinnChart">
 				<thead>
 					{table.getHeaderGroups().map(headerGroup => (
@@ -260,23 +173,12 @@ export function BasinnChart(props) {
 				<tbody onClick={handleClick} onDblClick={handleDblClick}>
 					{table.getRowModel().rows.map(row => {
 						const id = row.getValue('id');
-						const isExpanded = expanded === id;
-						const rowData = props.data.find(d => d.id === id);
 						return (
-							<Fragment key={row.id}>
-								<tr data-skillid={id} class={isExpanded ? 'expanded' : ''} style={props.hidden.has(id) && 'display:none'}>
-									{row.getAllCells().map(cell => (
-										<td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-									))}
-								</tr>
-								{isExpanded && rowData && rowData.runData && props.expandedContent && (
-									<tr class="expanded-content-row" data-skillid={id}>
-										<td colSpan={row.getAllCells().length}>
-											{props.expandedContent(id, rowData.runData, props.courseDistance)}
-										</td>
-									</tr>
-								)}
-							</Fragment>
+							<tr key={row.id} data-skillid={id} class={id == selected && 'selected'} style={props.hidden.has(id) && 'display:none'}>
+								{row.getAllCells().map(cell => (
+									<td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+								))}
+							</tr>
 						);
 					})}
 				</tbody>

@@ -247,21 +247,6 @@ export function noopErlangRandom(k: number, lambda: number) {
 
 export const noopUniformRandom = uniformRandom(noopAll);
 
-// This is a hack to prevnt skills like Dodging Danger from activating 0s into the race when their condition is >=1s
-// 13m/s * time is *not* accurate beyond 1s but it's a good enough approximation to appropriately delay skill activation
-function shiftRegionsForwardByMinTime(regions: RegionList, minTime: number, course: CourseData, _: HorseParameters, extra: RaceParameters) {
-	const minDistance = 13 * minTime;
-	const shiftedRegions = new RegionList();
-	regions.forEach(r => {
-		if (r.start === 0) {
-			shiftedRegions.push(new Region(r.start + minDistance, r.end));
-		} else {
-			shiftedRegions.push(r);
-		}
-	});
-	return shiftedRegions.length > 0 ? shiftedRegions : new RegionList();
-}
-
 function noopSectionRandom(start: number, end: number) {
 	function sectionRandom(regions: RegionList, _0: number, course: CourseData, _1: HorseParameters, extra: RaceParameters) {
 		const bounds = new Region(start * (course.distance / 24), end * (course.distance / 24));
@@ -402,18 +387,8 @@ function orderOutFilter(rate: number) {
 
 export const Conditions: {[cond: string]: Condition} = Object.freeze({
 	accumulatetime: immediate({
-		filterGte(regions: RegionList, t: number, course: CourseData, _: HorseParameters, extra: RaceParameters) {
-			// unfortunate hack. because we end up selecting only one region to use as the trigger, if the dynamic
-			// condition isn't satisfied there the skill fails to activate, even if it would have activated in a later
-			// region. this mostly affects じゃじゃウマ娘, where if a track starts with a hill but it takes longer than 10s
-			// to traverse the hill the skill fails to activate entirely, when really it should activate on a later hill
-			// but we threw the other regions out because it has the immediate sample policy.
-			// so resolve this by estimating where the skill can't possibly activate and then statically filtering that
-			// area out. due to the need to accelerate as well as factors like pace down etc, baseSpeed * t typically
-			// overestimates the distance traveled so use 0.85 * baseSpeed * t instead.
-			const baseSpeed = 20.0 - (course.distance - 2000) / 1000.0;
-			const rest = new Region(0.85 * baseSpeed * t, course.distance);
-			return [regions.rmap(r => r.intersect(rest)), (s: RaceState) => s.accumulatetime.t >= t] as [RegionList, DynamicCondition];
+		filterGte(regions: RegionList, t: number, _0: CourseData, _1: HorseParameters, extra: RaceParameters) {
+			return [regions, (s: RaceState) => s.accumulatetime.t >= t] as [RegionList, DynamicCondition];
 		}
 	}),
 	activate_count_all: immediate({
@@ -472,12 +447,8 @@ export const Conditions: {[cond: string]: Condition} = Object.freeze({
 	behind_near_lane_time_set1: noopErlangRandom(3, 2.0),
 	blocked_all_continuetime: noopErlangRandom(3, 2.0),
 	blocked_front: noopErlangRandom(3, 2.0),
-	blocked_front_continuetime: erlangRandom(3, 2.0, {
-		filterGte: shiftRegionsForwardByMinTime
-	}),
-	blocked_side_continuetime: erlangRandom(3, 2.0, {
-		filterGte: shiftRegionsForwardByMinTime
-	}),
+	blocked_front_continuetime: noopErlangRandom(3, 2.0),
+	blocked_side_continuetime: noopErlangRandom(3, 2.0),
 	change_order_onetime: noopErlangRandom(3, 2.0),
 	change_order_up_end_after: erlangRandom(3, 2.0, {
 		filterGte(regions: RegionList, _0: number, course: CourseData, _1: HorseParameters, extra: RaceParameters) {
@@ -765,7 +736,7 @@ export const Conditions: {[cond: string]: Condition} = Object.freeze({
 		}
 	}),
 	motivation: valueFilter((_0: CourseData, _1: HorseParameters, extra: RaceParameters) => extra.mood + 3),  // go from -2 to 2 to 1-5 scale
-	near_count: noopErlangRandom(2.0, 2.0),
+	near_count: noopErlangRandom(3, 2.0),
 	order: orderFilter((pos: number, _: number) => pos),
 	order_rate: orderFilter((rate: number, numUmas: number) => Math.round(numUmas * (rate / 100.0))),
 	order_rate_in20_continue: orderInFilter(0.2),
@@ -788,7 +759,7 @@ export const Conditions: {[cond: string]: Condition} = Object.freeze({
 			// obviously hard coding the skills we want to fudge this for is not really ideal, but it's not clear that it's
 			// safe to do in all cases. technically to fix this `phase` should probably be a dynamic condition that actually
 			// checks the phase to match in-game mechanics
-			const fudge = ['100591', '900591', '110261', '910261', '110191', '910191', '120451', '920451', '101502121', '100461'].indexOf(extra.skillId) > -1 ? 10 : 0;
+			const fudge = ['100591', '900591', '110261', '910261', '110191', '910191', '120451', '920451', '101502121'].indexOf(extra.skillId) > -1 ? 10 : 0;
 			const bounds = new Region(CourseHelpers.phaseStart(course.distance, phase), CourseHelpers.phaseEnd(course.distance, phase) + fudge);
 			return regions.rmap(r => r.intersect(bounds));
 		},

@@ -23,26 +23,27 @@ export function INTRO(props){
 export function IntroText(props) {
 	return (
 		<div id="introtext">
+			<h1>WELCOME TO VFalator!!!</h1>
+			<h2 className="warning-text">Warning: the enhancements made to this umalator fork enables usage of the tool as a more comprehensive race simulator, to simulate raw skill length differences without RNG factors <strong>set 'Position Keep' to 'Approximate'</strong> and <strong>turn off 'Wit Variance'</strong></h2>
+			<p className="warning-text">Raw skill length comparisons, as per the original umalator, have been battle-tested on JP and remain largely accurate. New additions such as Wit Variance and Virtual Pacemaker are experimental and results with these features should be taken with a grain of salt.</p>
+			<details>
+				<summary>Credits</summary>
+					<h1>Transparent Dino</h1>
+					<p>Enhanced Spurt calculator (taken from mee1080), Virtual Pacemaker, Downhills, Rushed</p>
+					<h1>jechtoff2dudes</h1>
+					<p>Frontrunner Overtake/Speedup mode, Dragging Skill Markers, Downhills, Skill Activation check</p>
+					<h1>Kachi</h1>
+					<p>Fixing all the bugs and UI issues, mood, UI improvements, rewriting poskeep, reworking RNG, uniques chart (utools at home)</p>
+			</details>
+
+
+
+
+
 			<details>
 				<summary>Caveats</summary>
 				The simulator is fairly complete and implements nearly all relevant game mechanics, with the following exceptions:
 				<ul>
-					<li>
-						<details>
-							<summary>Spot Struggle ignores LaneGap activation condition and is based solely on the distance between umas.</summary>
-							<p>Due to the difficulty of accurately simulating lane movement, Spot Struggle is activated when two or more Front Runner umas are within 3.75m of one another (5m for Runaway).</p>
-							<p>We do simulate lane movement, however, this is simply an approximation for the purpose of determining the effectiveness of lane movement skills post 1st-anniversary.</p>
-						</details>
-					</li>
-
-					<li>
-						<details>
-							<summary>Early-race lane movement is simulated approximately as this mechanic is dependent on other umas in the race.</summary>
-							<p>Specifically, your lane movement largely depends on overtake targets and blocking.</p>
-							<p>We have used logic from the mee1080 race simulator to approximate lane movement for the purposes of observing the effect of certain lane movement skills, however, it is not accurate enough to use for mechanics like Spot Struggle and Dueling.</p>
-						</details>
-					</li>
-
 					<li>
 						<details>
 							<summary>Pseudo-random skills based on the location of other umas use a best-effort estimation for the distribution of their activation locations which may not be perfectly reflective of in-game behavior in all circumstances</summary>
@@ -63,92 +64,13 @@ export function IntroText(props) {
 							Unique skills are always simulated as a base level 3★ unique.
 						</details>
 					</li>
+					
+					<li>Motivation is always assumed to be maximum</li>
 				</ul>
-				By and large it should be highly accurate. It has been battle-tested on the JP server for several years.
+				By and large it should be highly accurate. It has been battle-tested on the JP server for several years. Please use this if you KNOW what the hell you are doing.
 			</details>
-			<details open={true}>
+			<details>
 				<summary>Changelog</summary>
-				<section>
-					<h2>2026-03-07</h2>
-					<ul>
-						<li>Fixed style aptitude applying to skill wit check.</li>
-						<li>Improved skill picker UI.</li>
-						<li>Added skill type filtering for skill chart.</li>
-					</ul>
-				</section>
-				<section>
-					<h2>2026-02-19</h2>
-					<ul>
-						<li>Merged UI changes from fork https://github.com/TheCing/uma-tools</li>
-						<li>Merged accumulatetime bugfix from upstream.</li>
-						<li>Added umas tab.</li>
-					</ul>
-				</section>
-				<section>
-					<h2>2026-02-06</h2>
-					<ul>
-						<li>Restructured the UI.</li>
-					</ul>
-				</section>
-				<section>
-					<h2>2026-01-10</h2>
-					<ul>
-						<li>
-							<details>
-								<summary>Added dueling.</summary>
-								Dueling is an extremely non-trivial (and arguably pointless) mechanic to simulate as it is entirely based on lobby compositions which are not predictable.
-								Using in-game data, we've approximated the dueling frequency of each strategy which is the best we can do for now.
-							</details>
-						</li>
-						<li>Added the skill proc graphs from the skill chart to compare mode (expand the skill on the left side and click 'View Proc Data')</li>
-					</ul>
-				</section>
-				<section>
-					<h2>2025-12-11</h2>
-					<ul>
-						<li>Added back simplified wit toggles just in-case people want to experiment with them.</li>
-					</ul>
-				</section>
-				<section>
-					<h2>2025-12-06</h2>
-					<ul>
-						<li>
-							<details>
-								<summary>Removed Wit Variance toggle as it is no longer relevant - wit-related mechanics are now always enabled.</summary>
-								If you still want to observe race variance where skills proc in different locations, or 1 uma procs a recovery skill and the other doesn't, you can turn off 'Sync RNG' - though this means you will need to run more samples to achieve accurate mean/median length results.
-							</details>
-						</li>
-						<li>Synced fork with alpha123 latest changes.</li>
-					</ul>
-				</section>
-				<section>
-					<h2>2025-11-30</h2>
-					<ul>
-						<li>Fixed non-full spurts always being delayed by 60m.</li>
-						<li>Added cute utools graphs to skill/uma chart when you click on a skill.</li>
-					</ul>
-				</section>
-				<section>
-					<h2>2025-11-29</h2>
-					<ul>
-						<li>Updated global data.</li>
-						<li>Fixed umalator target speed clamping during deceleration.</li>
-						<li>Fixed last spurt candidate selection logic.</li>
-						<li>Fixed skills that target other umas (i.e. HRice unique) causing desync issues with skill charts.</li>
-					</ul>
-				</section>
-				<section>
-					<h2>2025-11-14</h2>
-					<ul>
-						<li>Updated skill/uma/track data to latest global version.</li>
-						<li>Added Spot Struggle simulation.</li>
-						<li>Added basic lane movement simulation (primarily for Dodging Danger/Prudent Positioning).</li>
-						<li>Added spurt/stamina survival rate. Initial comparisons with in-game spurt rate shows that vfalator is actually more accurate than mee1080, but more testing is needed.</li>
-						<li>Fixed start delay logic.</li>
-						<li>Fixed early-race velocity bug causing umas to accelerate faster than they should.</li>
-						<li>... and probably other stuffs I forgot since there hasn't been a changelog in a while...</li>
-					</ul>
-				</section>
 				<section>
 					<h2>2025-10-09</h2>
 					<ul>
@@ -239,15 +161,6 @@ export function IntroText(props) {
 						<li>Bug fixes</li>
 					</ul>
 				</section>
-			</details>
-			<details>
-				<summary>Credits</summary>
-					<h1>Transparent Dino</h1>
-					<p>Enhanced Spurt calculator (taken from mee1080), Virtual Pacemaker, Downhills, Rushed</p>
-					<h1>jechtoff2dudes</h1>
-					<p>Frontrunner Overtake/Speedup mode, Dragging Skill Markers, Downhills, Skill Activation check</p>
-					<h1>Kachi</h1>
-					<p>Fixing all the bugs and UI issues, mood, UI improvements, rewriting poskeep, reworking RNG, uniques chart (utools at home), spot struggle/dueling, lane movement</p>
 			</details>
 			<footer id="sourcelinks">
 				Original Umalator Source code: <a href="https://github.com/alpha123/uma-skill-tools">simulator</a>, <a href="https://github.com/alpha123/uma-tools">UI</a>
