@@ -17,7 +17,7 @@ const serve = port != null;
 const debug = !!options.debug;
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.join(dirname, '..', '..');
+const root = path.join(dirname, '..');
 
 const redirectData = {
 	name: 'redirectData',
@@ -153,11 +153,19 @@ function runServer(ctx, port) {
 				'Content-length': artifact.length
 			}).end(artifact);
 		} else {
-			const fp = path.join(root, url);
-			const exists = await fs.promises.access(fp).then(() => true, () => false);
+			const relativeUrl = url
+				.replace(/^\/uma-tools\//, '/')
+				.replace(/^\/+/, '');
+			let fp = path.join(root, relativeUrl);
+			let stat = await fs.promises.stat(fp).catch(() => null);
+			if (stat?.isDirectory()) {
+				fp = path.join(fp, 'index.html');
+				stat = await fs.promises.stat(fp).catch(() => null);
+			}
+			const exists = !!stat?.isFile();
 			if (exists) {
 				console.log(`GET ${req.url} 200 OK`);
-				res.writeHead(200, {'Content-type': MIME_TYPES[path.extname(filename)] || 'application/octet-stream'});
+				res.writeHead(200, {'Content-type': MIME_TYPES[path.extname(fp)] || 'application/octet-stream'});
 				fs.createReadStream(fp).pipe(res);
 			} else {
 				console.log(`GET ${req.url} 404 Not Found`)

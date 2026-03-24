@@ -1,4 +1,13 @@
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+const B64_STD = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+function b64Value(ch: string): number {
+    const i = B64.indexOf(ch);
+    if (i >= 0) return i;
+    const j = B64_STD.indexOf(ch);
+    if (j >= 0) return j;
+    return -1;
+}
 
 class BitVector {
     private bits: number[];
@@ -24,7 +33,7 @@ class BitVector {
     static fromBase64(str: string): BitVector {
         const bits: number[] = [];
         for (let i = 0; i < str.length; i++) {
-            const v = B64.indexOf(str[i]);
+            const v = b64Value(str[i]);
             if (v < 0) continue;
             for (let j = 5; j >= 0; j--) bits.push((v >> j) & 1);
         }
@@ -35,10 +44,10 @@ class BitVector {
 function b64ToBytes(str: string): Uint8Array {
     const result: number[] = [];
     for (let i = 0; i < str.length; i += 4) {
-        const a = B64.indexOf(str[i] ?? '');
-        const b = B64.indexOf(str[i + 1] ?? '');
-        const c = B64.indexOf(str[i + 2] ?? '');
-        const d = B64.indexOf(str[i + 3] ?? '');
+        const a = b64Value(str[i] ?? '');
+        const b = b64Value(str[i + 1] ?? '');
+        const c = b64Value(str[i + 2] ?? '');
+        const d = b64Value(str[i + 3] ?? '');
         if (a >= 0 && b >= 0) result.push((a << 2) | (b >> 4));
         if (b >= 0 && c >= 0 && i + 2 < str.length) result.push(((b & 0xf) << 4) | (c >> 2));
         if (c >= 0 && d >= 0 && i + 3 < str.length) result.push(((c & 0x3) << 6) | d);
@@ -46,10 +55,14 @@ function b64ToBytes(str: string): Uint8Array {
     return new Uint8Array(result);
 }
 
-async function gunzip(data: Uint8Array): Promise<string> {
+async function gunzipBytes(data: Uint8Array): Promise<Uint8Array> {
     const ds = new (window as any).DecompressionStream('gzip');
     const stream = (new Blob([data as any]).stream() as any).pipeThrough(ds);
-    const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function gunzip(data: Uint8Array): Promise<string> {
+    const bytes = await gunzipBytes(data);
     return new TextDecoder().decode(bytes);
 }
 
@@ -261,20 +274,49 @@ export async function decodeRoster(input: string): Promise<DecodedUma[]> {
 
     const hashIdx = encoded.indexOf('#');
     if (hashIdx >= 0) encoded = encoded.slice(hashIdx + 1);
-    encoded = decodeURIComponent(encoded);
 
+    try {
+        encoded = decodeURIComponent(encoded);
+    } catch {
+        throw new Error('Input is not valid URL-encoded data');
+    }
+
+    encoded = encoded.replace(/\s+/g, '');
     if (!encoded) return [];
 
     if (encoded.startsWith('z')) {
+        let decompressedBytes: Uint8Array;
         try {
             const bytes = b64ToBytes(encoded.slice(1));
-            encoded = await gunzip(bytes);
+            decompressedBytes = await gunzipBytes(bytes);
         } catch {
-            return [];
+            throw new Error('Invalid compressed roster payload');
         }
+
+        const decompressedText = new TextDecoder().decode(decompressedBytes);
+        const trimmed = decompressedText.trim();
+        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+            try {
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) {
+                    return parsed as DecodedUma[];
+                }
+                if (parsed && typeof parsed === 'object' && Array.isArray((parsed as any).umas)) {
+                    return (parsed as any).umas as DecodedUma[];
+                }
+                throw new Error('Unsupported JSON roster shape');
+            } catch (e: any) {
+                throw new Error('Decompressed payload is JSON but could not be parsed: ' + (e?.message ?? 'Unknown JSON error'));
+            }
+        }
+
+        encoded = bytesToB64(decompressedBytes);
     }
 
     const bv = BitVector.fromBase64(encoded);
+    if (bv.remaining() < 8) {
+        throw new Error('Roster payload is too short or contains invalid base64 data');
+    }
     const version = bv.read(8);
 
     if (version === 4) {
@@ -284,18 +326,23 @@ export async function decodeRoster(input: string): Promise<DecodedUma[]> {
             if (!uma) break;
             result.push(uma);
         }
+        if (result.length === 0) {
+            throw new Error('Version 4 roster payload contains no uma entries');
+        }
         return result;
     }
 
     if (version === 2) {
         const uma = readV2Uma(bv);
-        return uma ? [uma] : [];
+        if (uma) return [uma];
+        throw new Error('Version 2 roster payload is incomplete');
     }
 
     if (version === 1) {
         const uma = readV1Uma(bv);
-        return uma ? [uma] : [];
+        if (uma) return [uma];
+        throw new Error('Version 1 roster payload is incomplete');
     }
 
-    return [];
+    throw new Error(`Unsupported roster version: ${version}`);
 }
