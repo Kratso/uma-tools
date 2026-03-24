@@ -1,4 +1,6 @@
 import * as esbuild from 'esbuild';
+import * as crypto from 'node:crypto';
+import * as fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -45,3 +47,11 @@ await esbuild.build({
 	external: ['*.ttf'],
 	plugins: [mockAssert, redirectTable]
 });
+
+const jsHash = crypto.createHash('md5').update(fs.readFileSync(path.join(dirname, 'bundle.js'))).digest('hex').slice(0, 8);
+const cssHash = crypto.createHash('md5').update(fs.readFileSync(path.join(dirname, 'bundle.css'))).digest('hex').slice(0, 8);
+const indexPath = path.join(dirname, 'index.html');
+let html = fs.readFileSync(indexPath, 'utf8');
+html = html.replace(/bundle\.css(\?v=[a-f0-9]+)?/, `bundle.css?v=${cssHash}`);
+html = html.replace(/bundle\.js(\?v=[a-f0-9]+)?/, `bundle.js?v=${jsHash}`);
+fs.writeFileSync(indexPath, html);

@@ -122,6 +122,7 @@ const presets = (CC_GLOBAL ? [
 
 const DEFAULT_PRESET = presets[Math.max(presets.findIndex((now => p => new Date(p.date.getFullYear(), p.date.getUTCMonth() + 1, 0) < now)(new Date())) - 1, 0)];
 const DEFAULT_COURSE_ID = DEFAULT_PRESET.courseId;
+const STATE_VERSION = 2;
 
 const UI_ja = Object.freeze({
 	'stats': Object.freeze(['なし', 'スピード', 'スタミナ', 'パワー', '根性', '賢さ']),
@@ -1121,6 +1122,7 @@ async function serialize(courseId: number, nsamples: number, seed: number, posKe
 	endCloser: number
 }, graphToggles: { showHp: boolean, showPoskeepGap: boolean, showLabels: boolean }) {
 	const json = JSON.stringify({
+		stateVersion: STATE_VERSION,
 		courseId,
 		nsamples,
 		seed,
@@ -1177,12 +1179,13 @@ async function deserialize(hash) {
 		if (result.done) {
 			try {
 				const o = JSON.parse(json);
+				const restoreRaceState = o.stateVersion === STATE_VERSION;
 				return {
-					courseId: o.courseId,
+					courseId: restoreRaceState ? o.courseId : DEFAULT_COURSE_ID,
 					nsamples: o.nsamples,
 					seed: o.seed || DEFAULT_SEED,  // field added later, could be undefined when loading state from existing links
 					posKeepMode: o.posKeepMode != null ? o.posKeepMode : (o.usePosKeep ? PosKeepMode.Approximate : PosKeepMode.None),  // backward compatibility
-					racedef: new RaceParams(o.racedef),
+					racedef: restoreRaceState ? new RaceParams(o.racedef) : new RaceParams(DEFAULT_PRESET.racedef),
 					uma1: new HorseState(o.uma1)
 						.set('skills', SkillSet(o.uma1.skills))
 						.set('forcedSkillPositions', ImmMap(o.uma1.forcedSkillPositions || {})),
