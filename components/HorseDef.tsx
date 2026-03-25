@@ -19,6 +19,39 @@ import skilldata from '../uma-skill-tools/data/skill_data.json';
 import skillmeta from '../skill_meta.json';
 
 const umaAltIds = Object.keys(umas).flatMap(id => Object.keys(umas[id].outfits));
+
+// Ordered map of groupId -> [skillId, ...] used for SP cost calculation.
+// Skills are sorted by rarity asc then numeric id desc so each group's list
+// represents the upgrade chain from cheapest (index 0) to most expensive.
+const _spSkillGroups = Object.keys(skilldata)
+	.filter(id => (skillmeta as any)[id] != null)
+	.sort((a, b) => skilldata[a].rarity - skilldata[b].rarity || +b - +a)
+	.reduce((groups, id) => {
+		const groupId = (skillmeta as any)[id].groupId;
+		if (groups.has(groupId)) groups.get(groupId)!.push(id);
+		else groups.set(groupId, [id]);
+		return groups;
+	}, new Map<string, string[]>());
+
+function calcSkillSP(skillIds: Iterable<string>): number {
+	const highestByGroup = new Map<string, number>();
+	for (const id of skillIds) {
+		const r = (skilldata as any)[id]?.rarity ?? 1;
+		if (r >= 3 && r <= 5) continue; // unique skills don't count toward SP
+		const groupId = (skillmeta as any)[id]?.groupId;
+		if (!groupId) continue;
+		const group = _spSkillGroups.get(groupId);
+		const idx = group?.indexOf(id) ?? -1;
+		if (idx < 0) continue;
+		if (idx > (highestByGroup.get(groupId) ?? -1)) highestByGroup.set(groupId, idx);
+	}
+	let total = 0;
+	for (const [groupId, idx] of highestByGroup) {
+		const group = _spSkillGroups.get(groupId)!;
+		for (let i = 0; i <= idx; i++) total += (skillmeta as any)[group[i]]?.baseCost ?? 0;
+	}
+	return total;
+}
 const umaNamesForSearch = {};
 umaAltIds.forEach(id => {
 	const u = umas[id.slice(0,4)];
@@ -454,6 +487,7 @@ export function HorseDef(props) {
 			</ul>
 			<button class="horseAddSkillBtn" onClick={openSkillPicker} tabindex={tabnext()}>+ Add Skill</button>
 		</div>
+		<div class="horseTotalSP">Total SP: <strong>{calcSkillSP(state.skills.values()).toLocaleString()}</strong></div>
 		<SkillPickerModal
 			isOpen={skillPickerOpen}
 			onClose={() => setSkillPickerOpen(false)}
