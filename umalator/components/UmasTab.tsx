@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo, useContext } from 'preact/ho
 import { Text, IntlContext } from 'preact-i18n';
 
 import { decodeRoster, saveRoster, loadRoster, DecodedUma } from '../rosterDecoder';
+import { importUmaExtractorFile } from '../umaExtractorDecoder';
 import './UmasTab.css';
 
 import umas from '../../umas.json';
@@ -137,11 +138,48 @@ function calcTotalSP(skills: Array<{ id: number; level: number }>): number {
     return total;
 }
 
+function parseCreateTime(value?: string): number | null {
+    if (!value) return null;
+    const direct = Date.parse(value);
+    if (!Number.isNaN(direct)) return direct;
+
+    // Fallback for loose formats like YYYY/MM/DD HH:mm:ss
+    const normalized = value.replace(/\//g, '-').replace(' ', 'T');
+    const fallback = Date.parse(normalized);
+    return Number.isNaN(fallback) ? null : fallback;
+}
+
+function compareNullableNumber(a: number | null, b: number | null, dir: SortDir): number {
+    if (a == null && b == null) return 0;
+    if (a == null) return dir === 'asc' ? -1 : 1;
+    if (b == null) return dir === 'asc' ? 1 : -1;
+    return dir === 'asc' ? a - b : b - a;
+}
+
 type SortKey = 'sp' | 'time' | 'rating';
 type SortDir = 'asc' | 'desc';
 interface SortState { key: SortKey; dir: SortDir; }
 const SORT_LABELS: Record<SortKey, string> = { sp: 'Total SP', time: 'Created', rating: 'Rating' };
 const DEFAULT_SORT: SortState = { key: 'time', dir: 'desc' };
+
+interface CardConfig {
+    showStats: boolean;
+    showApts: boolean;
+    showSkills: boolean;
+    showTotalSP: boolean;
+}
+const DEFAULT_CARD_CONFIG: CardConfig = { showStats: true, showApts: true, showSkills: true, showTotalSP: true };
+const CARD_CONFIG_STORAGE_KEY = 'umas_tab_card_config';
+
+function loadCardConfig(): CardConfig {
+    try {
+        const raw = localStorage.getItem(CARD_CONFIG_STORAGE_KEY);
+        if (!raw) return DEFAULT_CARD_CONFIG;
+        return { ...DEFAULT_CARD_CONFIG, ...JSON.parse(raw) };
+    } catch {
+        return DEFAULT_CARD_CONFIG;
+    }
+}
 
 // ── Filter logic ─────────────────────────────────────────────────────────────
 
@@ -397,7 +435,7 @@ function SortControl({ sort, onSortChange }: {
     );
 }
 
-function SearchBar({ name, onNameChange, filtersOpen, onToggleFilters, filterCount, sort, onSortChange }: {
+function SearchBar({ name, onNameChange, filtersOpen, onToggleFilters, filterCount, sort, onSortChange, onOpenConfig }: {
     name: string;
     onNameChange: (v: string) => void;
     filtersOpen: boolean;
@@ -405,6 +443,7 @@ function SearchBar({ name, onNameChange, filtersOpen, onToggleFilters, filterCou
     filterCount: number;
     sort: SortState | null;
     onSortChange: (s: SortState | null) => void;
+    onOpenConfig: () => void;
 }) {
     return (
         <div class="umasSearchBar">
@@ -425,11 +464,17 @@ function SearchBar({ name, onNameChange, filtersOpen, onToggleFilters, filterCou
                 {filterCount > 0 && <span class="umasFilterBadge">{filterCount}</span>}
                 <span class="umasFiltersChevron">{filtersOpen ? '▲' : '▼'}</span>
             </button>
+            <button class="umasConfigBtn" onClick={onOpenConfig} type="button" title="Card display options">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+            </button>
         </div>
     );
 }
 
-function SkillGrid({ skills, cardId }: { skills: Array<{ id: number; level: number }>; cardId: number }) {
+function SkillGrid({ skills }: { skills: Array<{ id: number; level: number }> }) {
     const known = skills
         .filter(s => {
             const idStr = String(s.id);
@@ -437,7 +482,6 @@ function SkillGrid({ skills, cardId }: { skills: Array<{ id: number; level: numb
         })
         .sort((a, b) => skillOrder(String(a.id), String(b.id)));
     if (known.length === 0) return null;
-    const totalSP = calcTotalSP(skills);
     return (
         <div class="umasSkillSection">
             <div class="umasSkillGrid">
@@ -455,9 +499,55 @@ function SkillGrid({ skills, cardId }: { skills: Array<{ id: number; level: numb
                     );
                 })}
             </div>
-            <div class="umasSkillSpTotal">
-                <span class="umasSkillSpTotalLabel">Total SP</span>
-                <span class="umasSkillSpTotalValue">{totalSP.toLocaleString()}</span>
+        </div>
+    );
+}
+
+function TotalSpBlock({ skills }: { skills: Array<{ id: number; level: number }> }) {
+    const total = calcTotalSP(skills);
+    return (
+        <div class="umasTotalSpBlock">
+            <span class="umasTotalSpLabel">Total SP</span>
+            <span class="umasTotalSpValue">{total.toLocaleString()}</span>
+        </div>
+    );
+}
+
+function CardConfigModal({ config, onChange, onClose }: {
+    config: CardConfig;
+    onChange: (c: CardConfig) => void;
+    onClose: () => void;
+}) {
+    function toggle(key: keyof CardConfig) {
+        const next = { ...config, [key]: !config[key] };
+        onChange(next);
+        localStorage.setItem(CARD_CONFIG_STORAGE_KEY, JSON.stringify(next));
+    }
+    return (
+        <div class="umasConfigBackdrop" onClick={onClose}>
+            <div class="umasConfigModal" onClick={(e) => e.stopPropagation()}>
+                <div class="umasConfigHeader">
+                    <span class="umasConfigTitle">Card display</span>
+                    <button class="umasConfigClose" onClick={onClose} type="button">✕</button>
+                </div>
+                <div class="umasConfigBody">
+                    {([
+                        ['showStats',   'Stats (SPD / STA / PWR / GTS / WIS)'],
+                        ['showApts',    'Aptitudes (surface, distance, style)'],
+                        ['showSkills',  'Skills list'],
+                        ['showTotalSP', 'Total SP'],
+                    ] as const).map(([key, label]) => (
+                        <label key={key} class="umasConfigRow">
+                            <input
+                                type="checkbox"
+                                class="umasConfigCheck"
+                                checked={config[key]}
+                                onChange={() => toggle(key)}
+                            />
+                            <span class="umasConfigRowLabel">{label}</span>
+                        </label>
+                    ))}
+                </div>
             </div>
         </div>
     );
@@ -469,7 +559,7 @@ interface UmaCardActions {
     onExport?: (uma: DecodedUma) => void;
 }
 
-function UmaCard({ uma, actions }: { uma: DecodedUma; actions: UmaCardActions }) {
+function UmaCard({ uma, config, actions }: { uma: DecodedUma; config: CardConfig; actions: UmaCardActions }) {
     const { charName, outfitName, iconSrc } = getCharInfo(uma.card_id);
     const [copied, setCopied] = useState(false);
 
@@ -518,45 +608,50 @@ function UmaCard({ uma, actions }: { uma: DecodedUma; actions: UmaCardActions })
                 )}
             </div>
 
-            <div class="umaCardStats">
-                {([
-                    ['speed',   'SPD', '/uma-tools/icons/status_00.png'],
-                    ['stamina', 'STA', '/uma-tools/icons/status_01.png'],
-                    ['power',   'PWR', '/uma-tools/icons/status_02.png'],
-                    ['guts',    'GTS', '/uma-tools/icons/status_03.png'],
-                    ['wisdom',  'WIS', '/uma-tools/icons/status_04.png'],
-                ] as const).map(([key, label, catIcon]) => (
-                    <div class="umaCardStat" key={key}>
-                        <img class="umaStatCatIcon" src={catIcon} alt={label} />
-                        <img class="umaStatRankIcon" src={`/uma-tools/icons/statusrank/ui_statusrank_${statRankStr(uma[key])}.png`} alt="" />
-                        <span class="umaStatValue">{uma[key]}</span>
+            {config.showStats && (
+                <div class="umaCardStats">
+                    {([
+                        ['speed',   'SPD', '/uma-tools/icons/status_00.png'],
+                        ['stamina', 'STA', '/uma-tools/icons/status_01.png'],
+                        ['power',   'PWR', '/uma-tools/icons/status_02.png'],
+                        ['guts',    'GTS', '/uma-tools/icons/status_03.png'],
+                        ['wisdom',  'WIS', '/uma-tools/icons/status_04.png'],
+                    ] as const).map(([key, label, catIcon]) => (
+                        <div class="umaCardStat" key={key}>
+                            <img class="umaStatCatIcon" src={catIcon} alt={label} />
+                            <img class="umaStatRankIcon" src={`/uma-tools/icons/statusrank/ui_statusrank_${statRankStr(uma[key])}.png`} alt="" />
+                            <span class="umaStatValue">{uma[key]}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {config.showApts && (
+                <div class="umaCardApts">
+                    <div class="umasAptRow">
+                        <span class="umasAptRowLabel">Surf</span>
+                        <AptCell label="Turf"   value={uma.apt_turf} />
+                        <AptCell label="Dirt"   value={uma.apt_dirt} />
                     </div>
-                ))}
-            </div>
+                    <div class="umasAptRow">
+                        <span class="umasAptRowLabel">Dist</span>
+                        <AptCell label="Short"  value={uma.apt_short} />
+                        <AptCell label="Mile"   value={uma.apt_mile} />
+                        <AptCell label="Middle" value={uma.apt_middle} />
+                        <AptCell label="Long"   value={uma.apt_long} />
+                    </div>
+                    <div class="umasAptRow">
+                        <span class="umasAptRowLabel">Style</span>
+                        <AptCell label="Front"  value={uma.apt_nige} />
+                        <AptCell label="Pace"   value={uma.apt_senko} />
+                        <AptCell label="Late"   value={uma.apt_sashi} />
+                        <AptCell label="End"    value={uma.apt_oikomi} />
+                    </div>
+                </div>
+            )}
 
-            <div class="umaCardApts">
-                <div class="umasAptRow">
-                    <span class="umasAptRowLabel">Surf</span>
-                    <AptCell label="Turf"   value={uma.apt_turf} />
-                    <AptCell label="Dirt"   value={uma.apt_dirt} />
-                </div>
-                <div class="umasAptRow">
-                    <span class="umasAptRowLabel">Dist</span>
-                    <AptCell label="Short"  value={uma.apt_short} />
-                    <AptCell label="Mile"   value={uma.apt_mile} />
-                    <AptCell label="Middle" value={uma.apt_middle} />
-                    <AptCell label="Long"   value={uma.apt_long} />
-                </div>
-                <div class="umasAptRow">
-                    <span class="umasAptRowLabel">Style</span>
-                    <AptCell label="Front"  value={uma.apt_nige} />
-                    <AptCell label="Pace"   value={uma.apt_senko} />
-                    <AptCell label="Late"   value={uma.apt_sashi} />
-                    <AptCell label="End"    value={uma.apt_oikomi} />
-                </div>
-            </div>
-
-            <SkillGrid skills={uma.skills} cardId={uma.card_id} />
+            {config.showSkills && <SkillGrid skills={uma.skills} />}
+            {config.showTotalSP && <TotalSpBlock skills={uma.skills} />}
         </div>
     );
 }
@@ -589,6 +684,8 @@ export function UmasTab({ onLoadUma1, onLoadUma2, onExport }: UmasTabProps = {})
     const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [sort, setSort] = useState<SortState | null>(DEFAULT_SORT);
+    const [cardConfig, setCardConfig] = useState<CardConfig>(loadCardConfig);
+    const [configOpen, setConfigOpen] = useState(false);
     const intlCtx = useContext(IntlContext as any) as any;
     const intlSkillNames: Record<string, string> = intlCtx?.intl?.dictionary?.skillnames ?? {};
 
@@ -616,6 +713,29 @@ export function UmasTab({ onLoadUma1, onLoadUma2, onExport }: UmasTabProps = {})
         }
     }, [inputValue]);
 
+    const handleJsonFileImport = useCallback(async (e: Event) => {
+        const fileInput = e.target as HTMLInputElement;
+        const file = fileInput.files?.[0];
+        if (!file) return;
+
+        setImportError('');
+        setIsImporting(true);
+        try {
+            const decoded = await importUmaExtractorFile(file);
+            if (decoded.length === 0) {
+                setImportError('No valid UmaExtractor character data found in the selected JSON file.');
+            } else {
+                setImportedUmas(decoded);
+                saveRoster(decoded).then(encoded => localStorage.setItem(STORAGE_KEY, encoded));
+            }
+        } catch (err: any) {
+            setImportError('JSON import failed: ' + (err?.message ?? 'Unknown error'));
+        } finally {
+            setIsImporting(false);
+            fileInput.value = '';
+        }
+    }, []);
+
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -638,24 +758,24 @@ export function UmasTab({ onLoadUma1, onLoadUma2, onExport }: UmasTabProps = {})
             if (effectiveSort.key === 'sp') {
                 const valA = calcTotalSP(a.skills);
                 const valB = calcTotalSP(b.skills);
-                return effectiveSort.dir === 'asc' ? valA - valB : valB - valA;
+                const cmp = effectiveSort.dir === 'asc' ? valA - valB : valB - valA;
+                if (cmp !== 0) return cmp;
+                // Deterministic tie-breaker so direction changes are visible.
+                return effectiveSort.dir === 'asc' ? a.card_id - b.card_id : b.card_id - a.card_id;
             }
             if (effectiveSort.key === 'time') {
-                const tA = a.create_time ?? '';
-                const tB = b.create_time ?? '';
-                if (!tA && !tB) return 0;
-                if (!tA) return 1;
-                if (!tB) return -1;
-                const cmp = tB.localeCompare(tA);
-                return effectiveSort.dir === 'asc' ? -cmp : cmp;
+                const tA = parseCreateTime(a.create_time);
+                const tB = parseCreateTime(b.create_time);
+                const cmp = compareNullableNumber(tA, tB, effectiveSort.dir);
+                if (cmp !== 0) return cmp;
+                return effectiveSort.dir === 'asc' ? a.card_id - b.card_id : b.card_id - a.card_id;
             }
             if (effectiveSort.key === 'rating') {
-                const rA = a.rank_score ?? -1;
-                const rB = b.rank_score ?? -1;
-                if (rA < 0 && rB < 0) return 0;
-                if (rA < 0) return 1;
-                if (rB < 0) return -1;
-                return effectiveSort.dir === 'asc' ? rA - rB : rB - rA;
+                const rA = a.rank_score ?? null;
+                const rB = b.rank_score ?? null;
+                const cmp = compareNullableNumber(rA, rB, effectiveSort.dir);
+                if (cmp !== 0) return cmp;
+                return effectiveSort.dir === 'asc' ? a.card_id - b.card_id : b.card_id - a.card_id;
             }
             return 0;
         });
@@ -686,11 +806,22 @@ export function UmasTab({ onLoadUma1, onLoadUma2, onExport }: UmasTabProps = {})
                         </button>
                     )}
                 </div>
+                <div class="umasImportInputRow">
+                    <span class="umasFileInputLabel">UmaExtractor JSON:</span>
+                    <input
+                        type="file"
+                        class="umasFileInput"
+                        accept=".json,application/json"
+                        onChange={handleJsonFileImport}
+                        disabled={isImporting}
+                    />
+                </div>
                 {importError && <p class="umasImportError">{importError}</p>}
                 <p class="umasImportHint">
-                    Export your trained umas at{' '}
+                    <strong>Via roster.uma.guide:</strong> Export at{' '}
                     <a href="https://roster.uma.guide/" target="_blank" rel="noopener">roster.uma.guide</a>
-                    {' '}— paste the full URL here to load your roster.
+                    {' '}and paste the URL.{' '}
+                    <strong>Via UmaExtractor:</strong> Upload your data.json file.
                     {importedUmas.length > 0 && (
                         <span class="umasLoadedCount"> {importedUmas.length} uma{importedUmas.length !== 1 ? 's' : ''} loaded.</span>
                     )}
@@ -707,6 +838,7 @@ export function UmasTab({ onLoadUma1, onLoadUma2, onExport }: UmasTabProps = {})
                         filterCount={badgeCount}
                         sort={sort}
                         onSortChange={setSort}
+                        onOpenConfig={() => setConfigOpen(true)}
                     />
                     {filtersOpen && (
                         <FilterPanel
@@ -728,7 +860,7 @@ export function UmasTab({ onLoadUma1, onLoadUma2, onExport }: UmasTabProps = {})
                     {visible.length > 0 ? (
                         <div class="umasGrid">
                             {visible.map(uma => (
-                                <UmaCard key={uma.card_id} uma={uma} actions={{ onLoadUma1, onLoadUma2, onExport }} />
+                                <UmaCard key={uma.card_id} uma={uma} config={cardConfig} actions={{ onLoadUma1, onLoadUma2, onExport }} />
                             ))}
                         </div>
                     ) : (
@@ -741,6 +873,14 @@ export function UmasTab({ onLoadUma1, onLoadUma2, onExport }: UmasTabProps = {})
                 <div class="umasEmpty">
                     <p>No roster loaded. Paste a URL above to get started.</p>
                 </div>
+            )}
+
+            {configOpen && (
+                <CardConfigModal
+                    config={cardConfig}
+                    onChange={setCardConfig}
+                    onClose={() => setConfigOpen(false)}
+                />
             )}
         </div>
     );

@@ -1564,7 +1564,7 @@ function decodedUmaToUmaState(uma: DecodedUma): UmaState {
         surfaceAptitude:  aptToLetter(bestSurfApt),
         strategyAptitude: aptToLetter(uma[bestStrat.key]),
         mood: 2,
-        skills: uma.skills.map(s => String(s.id)),
+        skills: uma.skills.map(s => String(s.id)).filter(id => (skilldata as any)[id] != null),
         forcedSkillPositions: {},
     };
 }

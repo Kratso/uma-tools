@@ -97,6 +97,65 @@
     color: var(--muted, #6b7280);
 }
 
+.umasFileInputLabel {
+    align-self: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--fg, #111827);
+    white-space: nowrap;
+}
+
+.umasFileInput {
+    flex: 1;
+    min-width: 0;
+    height: 36px;
+    padding: 0;
+    font-size: 13px;
+    color: var(--fg, #111827);
+    background: var(--input-bg, #fff);
+    border: 1px solid var(--input-border, hsl(210 14% 83%));
+    border-radius: 7px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.umasFileInput:hover {
+    border-color: hsl(215 35% 65%);
+}
+
+.umasFileInput:focus-visible {
+    border-color: hsl(215 70% 55%);
+    box-shadow: 0 0 0 2px hsl(215 70% 85% / 0.55);
+}
+
+.umasFileInput::file-selector-button {
+    height: 100%;
+    margin-right: 10px;
+    padding: 0 14px;
+    border: none;
+    border-right: 1px solid var(--input-border, hsl(210 14% 83%));
+    background: hsl(215 70% 50%);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.umasFileInput:hover::file-selector-button {
+    background: hsl(215 70% 44%);
+}
+
+.umasFileInput:disabled {
+    opacity: 0.6;
+}
+
+.umasFileInput:disabled::file-selector-button {
+    cursor: default;
+    background: hsl(215 20% 65%);
+}
+
 .umasImportHint a {
     color: hsl(215 70% 50%);
     text-decoration: none;
@@ -448,6 +507,148 @@
     color: hsl(0 70% 50%);
     border-color: hsl(0 60% 75%);
     background: hsl(0 80% 98%);
+}
+
+/* ── Config button ───────────────────────────────────────────── */
+
+.umasConfigBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 7px 10px;
+    background: var(--input-bg, #fff);
+    border: 1px solid var(--input-border, hsl(210 14% 83%));
+    border-radius: 7px;
+    color: var(--muted, #6b7280);
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    flex-shrink: 0;
+}
+
+.umasConfigBtn:hover {
+    background: hsl(215 50% 96%);
+    border-color: hsl(215 70% 55%);
+    color: hsl(215 70% 45%);
+}
+
+/* ── Config modal ────────────────────────────────────────────── */
+
+.umasConfigBackdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 200;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding: 60px 24px 0;
+}
+
+.umasConfigModal {
+    background: var(--bg, #fff);
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+    min-width: 260px;
+    overflow: hidden;
+}
+
+.umasConfigHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border, #e5e7eb);
+    background: var(--bg-subtle, hsl(220 14% 98%));
+}
+
+.umasConfigTitle {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--muted, #6b7280);
+}
+
+.umasConfigClose {
+    background: none;
+    border: none;
+    font-size: 15px;
+    line-height: 1;
+    color: var(--muted, #6b7280);
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-family: inherit;
+    transition: background 0.1s, color 0.1s;
+}
+
+.umasConfigClose:hover {
+    background: hsl(0 80% 95%);
+    color: hsl(0 70% 50%);
+}
+
+.umasConfigBody {
+    padding: 10px 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.umasConfigRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 4px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.08s;
+}
+
+.umasConfigRow:hover {
+    background: hsl(215 50% 97%);
+}
+
+.umasConfigCheck {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    accent-color: hsl(215 70% 50%);
+    cursor: pointer;
+}
+
+.umasConfigRowLabel {
+    font-size: 13px;
+    color: var(--fg, #111827);
+    user-select: none;
+}
+
+/* ── Total SP block ──────────────────────────────────────────── */
+
+.umasTotalSpBlock {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    margin: 0 12px 12px;
+    background: var(--bg-subtle, hsl(220 14% 98%));
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 7px;
+}
+
+.umasTotalSpLabel {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted, #6b7280);
+}
+
+.umasTotalSpValue {
+    font-size: 15px;
+    font-weight: 700;
+    color: hsl(215 70% 45%);
+    font-variant-numeric: tabular-nums;
 }
 
 /* Result count */

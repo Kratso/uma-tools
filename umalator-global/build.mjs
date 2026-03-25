@@ -130,7 +130,9 @@ function runServer(ctx, port) {
 	// client makes two requests for simulator.worker.js, avoid rebuilding on the second one
 	let workerState = 0;
 	http.createServer(async (req, res) => {
-		const url = req.url.endsWith('/') ? req.url + 'index.html' : req.url;
+		const requestUrl = req.url || '/';
+		const pathOnly = requestUrl.split('?')[0];
+		const url = pathOnly.endsWith('/') ? pathOnly + 'index.html' : pathOnly;
 		const filename = path.basename(url);
 		if (ARTIFACTS.indexOf(filename) > -1) {
 			const requestN = requestCount.get(filename) + (filename == 'simulator.worker.js' ? (workerState = +!workerState) : 1);
