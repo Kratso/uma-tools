@@ -59,6 +59,8 @@ const filterOps = Object.freeze({
 	phase1:         [C('phase==1'), C('phase>=1'), C('phase_random==1'), C('phase_firsthalf_random==1'), C('phase_laterhalf_random==1')],
 	phase2:         [C('phase==2'), C('phase>=2'), C('phase_random==2'), C('phase_firsthalf_random==2'), C('phase_laterhalf_random==2'), C('phase_firstquarter_random==2'), C('is_lastspurt==1')],
 	phase3:         [C('phase==3'), C('phase_random==3'), C('phase_firsthalf_random==3'), C('phase_laterhalf_random==3')],
+	corner:         [C('corner!=0'), C('corner==1'), C('corner==2'), C('corner==3'), C('corner==4'), C('corner_count>=1'), C('corner_random==1'), C('corner_random==2'), C('corner_random==3'), C('corner_random==4'), C('all_corner_random==1'), C('phase_corner_random==1'), C('is_finalcorner==1'), C('is_finalcorner_laterhalf==1'), C('is_finalcorner_random==1')],
+	straight:       [C('straight_random==1'), C('is_last_straight==1'), C('is_last_straight_onetime==1'), C('last_straight_random==1'), C('phase_straight_random==1'), C('phase_first_half_straight_random==1'), C('phase_latter_half_straight_random==1'), C('straight_front_type==1'), C('straight_front_type==2')],
 	finalcorner:    [C('is_finalcorner==1'), C('is_finalcorner_laterhalf==1'), C('is_finalcorner_random==1')],
 	finalstraight:  [C('is_last_straight==1'), C('is_last_straight_onetime==1')],
 });
@@ -213,6 +215,8 @@ const FILTER_GROUPS = [
 			{ id: 'phase1', label: 'Middle' },
 			{ id: 'phase2', label: 'Final' },
 			{ id: 'phase3', label: 'Spurt' },
+			{ id: 'corner', label: 'Corner' },
+			{ id: 'straight', label: 'Straight' },
 			{ id: 'finalcorner', label: 'Last ↩' },
 			{ id: 'finalstraight', label: 'Last →' },
 		],
