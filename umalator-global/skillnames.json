@@ -1239,7 +1239,7 @@
         "Hard Worker"
     ],
     "201402": [
-        "Fighter"
+        "Hard Worker"
     ],
     "201411": [
         "15,000,000 CC"
@@ -1413,7 +1413,7 @@
         "Head-On"
     ],
     "202001": [
-        "Master of the Sands"
+        "Neck and Neck"
     ],
     "202002": [
         "Familiar Ground"
@@ -1455,7 +1455,7 @@
         "Free-Spirited"
     ],
     "202081": [
-        "From the Brink"
+        "Nothing Ventured"
     ],
     "202082": [
         "Take the Chance"
@@ -1476,7 +1476,7 @@
         "Full of Vigor"
     ],
     "202112": [
-        "Pumped"
+        "Sufficient Spirit"
     ],
     "202121": [
         "Dauntless"
@@ -1491,7 +1491,7 @@
         "With All My Soul"
     ],
     "202141": [
-        "You're Not the Boss of Me!"
+        "Refraction Arc"
     ],
     "202151": [
         "Keep Going!"
@@ -1584,7 +1584,7 @@
         "Ruler of Japan"
     ],
     "300141": [
-        "Indomitable"
+        "Dauntless"
     ],
     "900011": [
         "Shooting Star"
@@ -1889,6 +1889,30 @@
     "9200031": [
         "Mile Race Enthusiast (inherited)"
     ],
+    "100502111": [
+        "Stunning Trick"
+    ],
+    "100502121": [
+        "Captivating Cornering"
+    ],
+    "100502211": [
+        "Glittering Top Star"
+    ],
+    "102002111": [
+        "Run~Away~♪"
+    ],
+    "102002121": [
+        "Surprise~Successful~☆"
+    ],
+    "102002211": [
+        "Record Runner"
+    ],
+    "103102111": [
+        "Perfect Order!"
+    ],
+    "103102211": [
+        "Brilliant Serving"
+    ],
     "105101111": [
         "Flurry Dash"
     ],
@@ -1898,13 +1922,22 @@
     "105101211": [
         "Large-Petaled Resolution"
     ],
-    "105102111": [
-        "Flower Girl's Blessing"
+    "106002111": [
+        "Guess I've Gotta Try"
     ],
-    "105102211": [
-        "Veil-Swaying Spring Storm"
+    "106002211": [
+        "Non-stop Cheer"
     ],
-    "105102221": [
-        "Blooming in Sickness and in Health"
+    "106102111": [
+        "Like Riding a Dragon's Cloud"
+    ],
+    "106102211": [
+        "As Spring Blooms, the Sakura Dance"
+    ],
+    "107202111": [
+        "General's Swift Strike"
+    ],
+    "107202211": [
+        "Peerless Pursuit"
     ]
 }
