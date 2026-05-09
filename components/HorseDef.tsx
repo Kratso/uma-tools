@@ -286,7 +286,18 @@ function assertIsSkill(sid: string): asserts sid is keyof typeof skilldata {
 	console.assert(skilldata[sid] != null);
 }
 
+const uniqueSkillOverrides: Partial<Record<typeof umaAltIds[number], keyof typeof skilldata>> = {
+	// These alt outfits keep their original unique skill IDs.
+	'103102': '100311', // Ines Fujin [MELTY GIFT]
+	'107202': '100721', // Yaeno Muteki [黒将Zen]
+};
+
 function uniqueSkillForUma(oid: typeof umaAltIds[number]): keyof typeof skilldata {
+	const override = uniqueSkillOverrides[oid];
+	if (override) {
+		return override;
+	}
+
 	const i = +oid.slice(1, -2), v = +oid.slice(-2);
 	const sid = (100000 + 10000 * (v - 1) + i * 10 + 1).toString();
 	assertIsSkill(sid);
