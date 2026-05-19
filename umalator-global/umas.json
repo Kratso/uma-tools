@@ -103,7 +103,10 @@
   },
   "1022": {
     "name": ["", "Fine Motion"],
-    "outfits": { "102201": "[Noble Seamair]" }
+    "outfits": {
+      "102201": "[Noble Seamair]",
+      "102202": "[Titania]"
+    }
   },
   "1023": {
     "name": ["", "Biwa Hayahide"],
@@ -161,7 +164,10 @@
   },
   "1038": {
     "name": ["", "Curren Chan"],
-    "outfits": { "103801": "[Fille Éclair]" }
+    "outfits": {
+      "103801": "[Fille Éclair]",
+      "103802": "[Ma Chérie of the New Moon]"
+    }
   },
   "1039": {
     "name": ["", "Kawakami Princess"],
