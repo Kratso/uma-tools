@@ -72,28 +72,6 @@
     ],
     "rarity": 3
   },
-  "10141": {
-    "alternatives": [
-      {
-        "baseDuration": 50000,
-        "condition": "is_finalcorner==1&corner==0&hp_per>=30&order<=2",
-        "effects": [
-          {
-            "modifier": 1500,
-            "target": 1,
-            "type": 27
-          },
-          {
-            "modifier": 2000,
-            "target": 1,
-            "type": 31
-          }
-        ],
-        "precondition": ""
-      }
-    ],
-    "rarity": 3
-  },
   "10181": {
     "alternatives": [
       {
@@ -914,6 +892,23 @@
     ],
     "rarity": 5
   },
+  "100341": {
+    "alternatives": [
+      {
+        "baseDuration": 50000,
+        "condition": "compete_fight_count>0",
+        "effects": [
+          {
+            "modifier": 4500,
+            "target": 1,
+            "type": 27
+          }
+        ],
+        "precondition": "distance_rate>=50&order_rate_out40_continue==1"
+      }
+    ],
+    "rarity": 5
+  },
   "100351": {
     "alternatives": [
       {
@@ -1000,6 +995,23 @@
           }
         ],
         "precondition": ""
+      }
+    ],
+    "rarity": 5
+  },
+  "100441": {
+    "alternatives": [
+      {
+        "baseDuration": 60000,
+        "condition": "remain_distance<=300",
+        "effects": [
+          {
+            "modifier": 3500,
+            "target": 1,
+            "type": 27
+          }
+        ],
+        "precondition": "order_rate_out50_continue==1&temptation_count==0&is_finalcorner==1"
       }
     ],
     "rarity": 5
@@ -1244,6 +1256,28 @@
       }
     ],
     "rarity": 4
+  },
+  "100641": {
+    "alternatives": [
+      {
+        "baseDuration": 60000,
+        "condition": "distance_rate>=50&order_rate_in20_continue==1",
+        "effects": [
+          {
+            "modifier": 550,
+            "target": 1,
+            "type": 9
+          },
+          {
+            "modifier": 2500,
+            "target": 1,
+            "type": 27
+          }
+        ],
+        "precondition": ""
+      }
+    ],
+    "rarity": 5
   },
   "100671": {
     "alternatives": [

@@ -130,7 +130,11 @@ export function downloadHorseJson(horse: UmaState): void {
     a.href = url;
     let name = 'horse';
     if (horse.outfitId) {
-        const uma = (umas as any)[horse.outfitId.slice(0, 4)];
+        const outfitIdNum = Number(horse.outfitId);
+        const umaId = Number.isFinite(outfitIdNum)
+            ? String(Math.floor(outfitIdNum / 100))
+            : horse.outfitId.slice(0, 4);
+        const uma = (umas as any)[umaId];
         if (uma?.name?.[1]) name = uma.name[1].replace(/\s+/g, '_');
     }
     a.download = `${name}.json`;

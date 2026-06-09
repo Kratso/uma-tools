@@ -1649,8 +1649,16 @@ function HorseSaveLoadActions({ state, setState, onReset }: { state: HorseState;
         setSavedSlots(getSavedSlotNames());
     }
 
+	function baseUmaIdFromOutfitId(outfitId?: string): string | null {
+		if (!outfitId) return null;
+		const n = Number(outfitId);
+		if (Number.isFinite(n)) return String(Math.floor(n / 100));
+		return outfitId.slice(0, 4);
+	}
+
     function handleSaveNew() {
-        const uma = state.outfitId ? (umas as any)[state.outfitId.slice(0, 4)]?.name?.[1] : null;
+		const umaId = baseUmaIdFromOutfitId(state.outfitId);
+		const uma = umaId ? (umas as any)[umaId]?.name?.[1] : null;
         setSaveModalName(uma || 'Horse');
         setIsSaveModalOpen(true);
     }

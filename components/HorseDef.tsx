@@ -20,6 +20,12 @@ import skillmeta from '../skill_meta.json';
 
 const umaAltIds = Object.keys(umas).flatMap(id => Object.keys(umas[id].outfits));
 
+function baseUmaIdFromOutfitId(outfitId: string): string {
+	const n = Number(outfitId);
+	if (Number.isFinite(n)) return String(Math.floor(n / 100));
+	return outfitId.slice(0, 4);
+}
+
 // Ordered map of groupId -> [skillId, ...] used for SP cost calculation.
 // Skills are sorted by rarity asc then numeric id desc so each group's list
 // represents the upgrade chain from cheapest (index 0) to most expensive.
@@ -54,7 +60,7 @@ function calcSkillSP(skillIds: Iterable<string>): number {
 }
 const umaNamesForSearch = {};
 umaAltIds.forEach(id => {
-	const u = umas[id.slice(0,4)];
+	const u = umas[baseUmaIdFromOutfitId(id)];
 	umaNamesForSearch[id] = (u.outfits[id] + ' ' + u.name[1]).toUpperCase().replace(/\./g, '');
 });
 
@@ -65,7 +71,7 @@ function searchNames(query) {
 
 export function UmaSelector(props) {
 	const randomMob = useMemo(() => `/uma-tools/icons/mob/trained_mob_chr_icon_${8000 + Math.floor(Math.random() * 624)}_000001_01.png`, []);
-	const u = props.value && umas[props.value.slice(0,4)];
+	const u = props.value && umas[baseUmaIdFromOutfitId(props.value)];
 
 	const input = useRef(null);
 	const suggestionsContainer = useRef(null);
@@ -79,7 +85,7 @@ export function UmaSelector(props) {
 	function confirm(oid) {
 		setOpen(false);
 		props.select(oid);
-		const uname = umas[oid.slice(0,4)].name[1];
+		const uname = umas[baseUmaIdFromOutfitId(oid)].name[1];
 		search(uname);
 		setActiveIdx(-1);
 		if (input.current != null) {
@@ -149,7 +155,7 @@ export function UmaSelector(props) {
 				<input type="text" class="umaSelectInput" value={query.input} tabindex={props.tabindex} onInput={handleInput} onKeyDown={handleKeyDown} onFocus={() => setOpen(true)} onBlur={handleBlur} ref={input} />
 				<ul class={`umaSuggestions ${open ? 'open' : ''}`} onMouseDown={handleClick} ref={suggestionsContainer}>
 					{query.suggestions.map((oid, i) => {
-						const uid = oid.slice(0,4);
+						const uid = baseUmaIdFromOutfitId(oid);
 						return (
 							<li key={oid} data-uma-id={oid} class={`umaSuggestion ${i == activeIdx ? 'selected' : ''}`}>
 								<img src={icons[oid]} loading="lazy" /><span>{umas[uid].outfits[oid]} {umas[uid].name[1]}</span>
@@ -286,6 +292,10 @@ function assertIsSkill(sid: string): asserts sid is keyof typeof skilldata {
 	console.assert(skilldata[sid] != null);
 }
 
+function isKnownSkillId(sid: string): sid is keyof typeof skilldata {
+	return (skilldata as any)[sid] != null && (skillmeta as any)[sid] != null;
+}
+
 const uniqueSkillOverrides: Partial<Record<typeof umaAltIds[number], keyof typeof skilldata>> = {
 	// These alt outfits keep their original unique skill IDs.
 	'103102': '100311', // Ines Fujin [MELTY GIFT]
@@ -300,6 +310,14 @@ function uniqueSkillForUma(oid: typeof umaAltIds[number]): keyof typeof skilldat
 
 	const i = +oid.slice(1, -2), v = +oid.slice(-2);
 	const sid = (100000 + 10000 * (v - 1) + i * 10 + 1).toString();
+	if (isKnownSkillId(sid)) return sid;
+
+	// Newer global outfits can expose evo unique IDs directly.
+	const fallbackCandidates = [`${oid}111`, `${oid}211`, `${oid}221`];
+	for (const candidate of fallbackCandidates) {
+		if (isKnownSkillId(candidate)) return candidate;
+	}
+
 	assertIsSkill(sid);
 	return sid;
 }
@@ -340,7 +358,8 @@ export function HorseDef(props) {
 
 		if (id) {
 			const uid = uniqueSkillForUma(id);
-			newSkills = newSkills.set(skillmeta[uid].groupId, uid);
+			const g = (skillmeta as any)[uid]?.groupId;
+			if (g != null) newSkills = newSkills.set(g, uid);
 		}
 
 		const removedSkillIds = state.skills.keySeq().toSet().subtract(newSkills.keySeq().toSet());
@@ -362,7 +381,8 @@ export function HorseDef(props) {
 	}
 
 	function handlePickerSelect(skillId: string) {
-		const groupId = skillmeta[skillId].groupId;
+		const groupId = (skillmeta as any)[skillId]?.groupId;
+		if (!groupId) return;
 		let newSkills;
 		if (isDebuffSkill(skillId)) {
 			const ndebuffs = state.skills.count(isDebuffSkill);

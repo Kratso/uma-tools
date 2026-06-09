@@ -287,6 +287,12 @@
     "iconId": "20013",
     "order": 10
   },
+  "100341": {
+    "baseCost": 0,
+    "groupId": "10034",
+    "iconId": "20013",
+    "order": 10
+  },
   "100351": {
     "baseCost": 0,
     "groupId": "10035",
@@ -296,6 +302,12 @@
   "100371": {
     "baseCost": 0,
     "groupId": "10037",
+    "iconId": "20013",
+    "order": 10
+  },
+  "100441": {
+    "baseCost": 0,
+    "groupId": "10044",
     "iconId": "20013",
     "order": 10
   },
@@ -309,6 +321,12 @@
     "baseCost": 0,
     "groupId": "10039",
     "iconId": "20013",
+    "order": 10
+  },
+  "100641": {
+    "baseCost": 0,
+    "groupId": "10064",
+    "iconId": "20023",
     "order": 10
   },
   "100401": {
