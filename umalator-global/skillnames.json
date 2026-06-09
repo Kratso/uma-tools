@@ -203,9 +203,6 @@
   "100351": [
     "Our Ticket to Win!"
   ],
-  "100361": [
-    "trigger:BEAT"
-  ],
   "100371": [
     "Schwarzes Schwert"
   ],
@@ -222,7 +219,7 @@
     "Genius x Bakushin = Victory"
   ],
   "100441": [
-    "Victory belongs to me—Strelitzia! ☆"
+    "Victory Belongs to Me—Strelitzia! ☆"
   ],
   "100451": [
     "Pure Heart"
@@ -237,7 +234,7 @@
     "Nemesis"
   ],
   "100511": [
-    "When the Flower Bud Opens"
+    "Budding Blossom"
   ],
   "100521": [
     "Super-Duper Climax"
@@ -297,9 +294,6 @@
   "110061": [
     "Festive Miracle"
   ],
-  "110101": [
-    "Joyful Voyage!"
-  ],
   "110111": [
     "Superior Heal"
   ],
@@ -319,8 +313,7 @@
     "Eternal Moments"
   ],
   "110201": [
-    "Do Ya Breakin!",
-    "Do Ya Breakin!"
+    "Break It Down!"
   ],
   "110221": [
     "Best Day Ever"
@@ -337,10 +330,6 @@
   "110301": [
     "Every Rose Has Its Fangs"
   ],
-  "110311": [
-    "フレッシュ☆パーラー",
-    "Fresh ☆ Parlor"
-  ],
   "110371": [
     "Guten Appetit ♪"
   ],
@@ -353,32 +342,17 @@
   "110451": [
     "Give Mummy a Hug ♡"
   ],
-  "110511": [
-    "Flowering Dreams"
-  ],
   "110521": [
     "114th Time's the Charm"
   ],
   "110561": [
     "Bountiful Harvest"
   ],
-  "110591": [
-    "Wherever This Wonder Leads"
-  ],
   "110601": [
-    "Go☆Go☆for it!",
-    "Go☆Go☆For It!"
+    "Go☆Go☆Goal!"
   ],
   "110611": [
-    "轟！トレセン応援団！！",
-    "Roaring Tracen Cheerleading Squad"
-  ],
-  "110721": [
-    "剛勇果断、烈火之刀",
-    "Decisive Blade of Blazing Fire"
-  ],
-  "120011": [
-    "Dreams Donned with Pride!"
+    "Louder! Tracen Cheer!"
   ],
   "200011": [
     "Right-Handed ◎"
@@ -1076,9 +1050,6 @@
   "201112": [
     "Medium Corners ○"
   ],
-  "201113": [
-    "Refraction Arc"
-  ],
   "201121": [
     "Clairvoyance"
   ],
@@ -1251,7 +1222,7 @@
     "Hard Worker"
   ],
   "201402": [
-    "Hard Worker"
+    "Fighter"
   ],
   "201411": [
     "15,000,000 CC"
@@ -1282,9 +1253,6 @@
   ],
   "201452": [
     "End Closer Straightaways ○"
-  ],
-  "201453": [
-    "Moonlit Flash"
   ],
   "201461": [
     "End Closer Corners ◎"
@@ -1425,7 +1393,7 @@
     "Head-On"
   ],
   "202001": [
-    "Neck and Neck"
+    "Master of the Sands"
   ],
   "202002": [
     "Familiar Ground"
@@ -1467,7 +1435,7 @@
     "Free-Spirited"
   ],
   "202081": [
-    "Nothing Ventured"
+    "From the Brink"
   ],
   "202082": [
     "Take the Chance"
@@ -1488,7 +1456,7 @@
     "Full of Vigor"
   ],
   "202112": [
-    "Sufficient Spirit"
+    "Pumped"
   ],
   "202121": [
     "Dauntless"
@@ -1503,7 +1471,7 @@
     "With All My Soul"
   ],
   "202141": [
-    "Refraction Arc"
+    "You're Not the Boss of Me!"
   ],
   "202151": [
     "Keep Going!",
@@ -1514,12 +1482,6 @@
   ],
   "202161": [
     "Restraint"
-  ],
-  "202172": [
-    "Downhill Speedster"
-  ],
-  "202181": [
-    "99 Problems"
   ],
   "210011": [
     "Burning Spirit SPD"
@@ -1592,12 +1554,6 @@
   ],
   "300121": [
     "For the Team"
-  ],
-  "300131": [
-    "Ruler of Japan"
-  ],
-  "300141": [
-    "Dauntless"
   ],
   "900011": [
     "Shooting Star"
@@ -1701,9 +1657,6 @@
   "900351": [
     "Our Ticket to Win!"
   ],
-  "900361": [
-    "trigger:BEAT"
-  ],
   "900371": [
     "Schwarzes Schwert"
   ],
@@ -1720,7 +1673,7 @@
     "Genius x Bakushin = Victory"
   ],
   "900441": [
-    "Victory belongs to me—Strelitzia! ☆"
+    "Victory Belongs to Me—Strelitzia! ☆"
   ],
   "900451": [
     "Pure Heart"
@@ -1735,7 +1688,7 @@
     "Nemesis"
   ],
   "900511": [
-    "When the Flower Bud Opens"
+    "Budding Blossom"
   ],
   "900521": [
     "Super-Duper Climax"
@@ -1794,9 +1747,6 @@
   "910061": [
     "Festive Miracle"
   ],
-  "910101": [
-    "Joyful Voyage!"
-  ],
   "910111": [
     "Superior Heal"
   ],
@@ -1845,26 +1795,17 @@
   "910451": [
     "Give Mummy a Hug ♡"
   ],
-  "910511": [
-    "Flowering Dreams"
-  ],
   "910521": [
     "114th Time's the Charm"
   ],
   "910561": [
     "Bountiful Harvest"
   ],
-  "910591": [
-    "Wherever This Wonder Leads"
-  ],
   "910601": [
     "Go☆Go☆Goal!"
   ],
   "910611": [
     "Louder! Tracen Cheer!"
-  ],
-  "920011": [
-    "Dreams Donned with Pride!"
   ],
   "1000011": [
     "Carnival Bonus"
@@ -1875,15 +1816,6 @@
   "1100011": [
     "Feelin' a Bit Silly"
   ],
-  "1200011": [
-    "Medium Race Enthusiast"
-  ],
-  "1200021": [
-    "Long Race Enthusiast"
-  ],
-  "1200031": [
-    "Mile Race Enthusiast"
-  ],
   "9000011": [
     "Carnival Bonus (inherited)"
   ],
@@ -1892,15 +1824,6 @@
   ],
   "9100011": [
     "Feelin' a Bit Silly (inherited)"
-  ],
-  "9200011": [
-    "Medium Race Enthusiast (inherited)"
-  ],
-  "9200021": [
-    "Long Race Enthusiast (inherited)"
-  ],
-  "9200031": [
-    "Mile Race Enthusiast (inherited)"
   ],
   "100502111": [
     "Stunning Trick"
