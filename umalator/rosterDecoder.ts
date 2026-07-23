@@ -1,6 +1,19 @@
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 const B64_STD = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
+function fromUrlSafeBase64(str: string): string {
+    return str.replace(/-/g, '+').replace(/_/g, '/');
+}
+
+function toUrlSafeBase64(str: string): string {
+    return str.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function padBase64(str: string): string {
+    const mod = str.length % 4;
+    return mod === 0 ? str : str + '='.repeat(4 - mod);
+}
+
 function b64Value(ch: string): number {
     const i = B64.indexOf(ch);
     if (i >= 0) return i;
@@ -42,17 +55,12 @@ class BitVector {
 }
 
 function b64ToBytes(str: string): Uint8Array {
-    const result: number[] = [];
-    for (let i = 0; i < str.length; i += 4) {
-        const a = b64Value(str[i] ?? '');
-        const b = b64Value(str[i + 1] ?? '');
-        const c = b64Value(str[i + 2] ?? '');
-        const d = b64Value(str[i + 3] ?? '');
-        if (a >= 0 && b >= 0) result.push((a << 2) | (b >> 4));
-        if (b >= 0 && c >= 0 && i + 2 < str.length) result.push(((b & 0xf) << 4) | (c >> 2));
-        if (c >= 0 && d >= 0 && i + 3 < str.length) result.push(((c & 0x3) << 6) | d);
+    const binary = atob(padBase64(fromUrlSafeBase64(str)));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
     }
-    return new Uint8Array(result);
+    return bytes;
 }
 
 async function gunzipBytes(data: Uint8Array): Promise<Uint8Array> {
@@ -67,15 +75,11 @@ async function gunzip(data: Uint8Array): Promise<string> {
 }
 
 function bytesToB64(bytes: Uint8Array): string {
-    let result = '';
-    for (let i = 0; i < bytes.length; i += 3) {
-        const a = bytes[i], b = bytes[i + 1] ?? 0, c = bytes[i + 2] ?? 0;
-        result += B64[a >> 2];
-        result += B64[((a & 3) << 4) | (b >> 4)];
-        result += i + 1 < bytes.length ? B64[((b & 0xf) << 2) | (c >> 6)] : '';
-        result += i + 2 < bytes.length ? B64[c & 0x3f] : '';
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
     }
-    return result;
+    return toUrlSafeBase64(btoa(binary));
 }
 
 async function gzip(text: string): Promise<Uint8Array> {

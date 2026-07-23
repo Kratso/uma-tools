@@ -23,6 +23,8 @@ import { getActivateableSkills, getNullRow, BasinnChart } from './BasinnChart';
 import { initTelemetry, postEvent } from './telemetry';
 
 import { IntroText } from './IntroText';
+import { UmasTab } from './components/UmasTab';
+import type { DecodedUma } from './rosterDecoder';
 
 import skilldata from '../uma-skill-tools/data/skill_data.json';
 import skillnames from '../uma-skill-tools/data/skillnames.json';
@@ -542,6 +544,39 @@ function nextUiState(state: typeof DEFAULT_UI_STATE, msg: UiStateMsg) {
 	}
 }
 
+function decodedUmaToHorseState(uma: DecodedUma): HorseState {
+	const aptToLetter = (v: number): string =>
+		(['G', 'G', 'F', 'E', 'D', 'C', 'B', 'A', 'S', 'S'] as const)[Math.max(0, Math.min(9, v))];
+
+	const strategies = [
+		{ key: 'apt_nige' as const, strat: 'Nige' as const },
+		{ key: 'apt_senko' as const, strat: 'Senkou' as const },
+		{ key: 'apt_sashi' as const, strat: 'Sasi' as const },
+		{ key: 'apt_oikomi' as const, strat: 'Oikomi' as const }
+	];
+	const bestStrat = strategies.reduce((best, curr) =>
+		uma[curr.key] >= uma[best.key] ? curr : best
+	);
+	const bestDistApt = Math.max(uma.apt_short, uma.apt_mile, uma.apt_middle, uma.apt_long);
+	const bestSurfApt = Math.max(uma.apt_turf, uma.apt_dirt);
+
+	return new HorseState({
+		outfitId: String(uma.card_id),
+		speed: uma.speed,
+		stamina: uma.stamina,
+		power: uma.power,
+		guts: uma.guts,
+		wisdom: uma.wisdom,
+		strategy: bestStrat.strat,
+		distanceAptitude: aptToLetter(bestDistApt),
+		surfaceAptitude: aptToLetter(bestSurfApt),
+		strategyAptitude: aptToLetter(uma[bestStrat.key]),
+		mood: 2 as Mood,
+		skills: SkillSet(uma.skills.map(s => String(s.id)).filter(id => (skilldata as any)[id] != null)),
+		forcedSkillPositions: ImmMap()
+	});
+}
+
 function WitVarianceSettingsPopup({ 
 	show, 
 	onClose, 
@@ -633,6 +668,7 @@ function WitVarianceSettingsPopup({
 function App(props) {
 	//const [language, setLanguage] = useLanguageSelect(); 
 	const [darkMode, toggleDarkMode] = useReducer(b=>!b, false);
+	const [activeTab, setActiveTab] = useState<'umalator' | 'umas'>('umalator');
 	const [skillsOpen, setSkillsOpen] = useState(false);
 	const [racedef, setRaceDef] = useState(() => DEFAULT_PRESET.racedef);
 	const [nsamples, setSamples] = useState(DEFAULT_SAMPLES);
@@ -1404,6 +1440,29 @@ function App(props) {
 	return (
 		<Language.Provider value={props.lang}>
 			<IntlProvider definition={strings}>
+				<nav id="navBar">
+					<div id="navTabs">
+						<div class={`navTab ${activeTab === 'umalator' ? 'selected' : ''}`} onClick={() => setActiveTab('umalator')}>Umalator</div>
+						<div class={`navTab ${activeTab === 'umas' ? 'selected' : ''}`} onClick={() => setActiveTab('umas')}>Umas</div>
+					</div>
+					<button id="themeToggle" onClick={toggleDarkMode} title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+						{darkMode
+							? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+							: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+						}
+					</button>
+				</nav>
+
+				<div id="umasPane" style={{ display: activeTab === 'umas' ? 'flex' : 'none' }}>
+					<UmasTab
+						onLoadUma1={(decoded) => { setUma1(decodedUmaToHorseState(decoded)); setActiveTab('umalator'); }}
+						onLoadUma2={(decoded) => { setUma2(decodedUmaToHorseState(decoded)); setActiveTab('umalator'); }}
+						onExport={(decoded) => { navigator.clipboard.writeText(JSON.stringify(decoded, null, 2)); }}
+					/>
+				</div>
+
+				{activeTab === 'umalator' && (
+				<>
 				<div id="topPane" class={chartData ? 'hasResults' : ''}>
 					<RaceTrack courseid={courseId} width={960} height={240} xOffset={20} yOffset={15} yExtra={20} mouseMove={rtMouseMove} mouseLeave={rtMouseLeave} onSkillDrag={handleSkillDrag} regions={[...skillActivations, ...rushedIndicators]} posKeepLabels={posKeepLabels} uma1={uma1} uma2={uma2} pacer={pacer}>
 						<VelocityLines data={chartData} courseDistance={course.distance} width={960} height={250} xOffset={20} showHp={showHp} showVirtualPacemaker={showVirtualPacemakerOnGraph && posKeepMode === PosKeepMode.Virtual} />
@@ -1573,6 +1632,8 @@ function App(props) {
 					toggleSkillCheckChanceUma1={toggleSkillCheckChanceUma1}
 					toggleSkillCheckChanceUma2={toggleSkillCheckChanceUma2}
 				/>
+				</>
+				)}
 			</IntlProvider>
 		</Language.Provider>
 	);

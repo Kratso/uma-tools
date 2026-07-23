@@ -10,7 +10,6 @@ import umas from '../../umas.json';
 import icons from '../../icons.json';
 import skillmeta from '../../skill_meta.json';
 import skilldata from '../../uma-skill-tools/data/skill_data.json';
-import { isPurpleSkill } from '../BasinnChart';
 const STORAGE_KEY = 'umas_tab_roster';
 
 const APT_LETTERS = ['?', 'G', 'F', 'E', 'D', 'C', 'B', 'A', 'S', '★'];
@@ -18,6 +17,11 @@ const APT_GRADE_OPTIONS = ['—', 'G', 'F', 'E', 'D', 'C', 'B', 'A', 'S'];
 
 // rarity 1=white, 2=gold, 3-5=unique, 6=pink
 const RARITY_CLASS: Record<number, string> = { 1: 'umasRarity-white', 2: 'umasRarity-gold', 3: 'umasRarity-unique', 4: 'umasRarity-unique', 5: 'umasRarity-unique', 6: 'umasRarity-pink' };
+
+function isPurpleSkill(id: string): boolean {
+    const iconId = (skillmeta as any)[id]?.iconId;
+    return typeof iconId === 'string' && iconId.length > 0 && iconId[iconId.length - 1] === '4';
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

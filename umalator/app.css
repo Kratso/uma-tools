@@ -12,6 +12,54 @@ body {
 	font-family: Inter, "Noto Sans JP", sans-serif;
 }
 
+#navBar {
+	align-items: center;
+	display: flex;
+	justify-content: space-between;
+	margin: 0 0 8px 0;
+	padding: 0 4px;
+}
+
+#navTabs {
+	display: flex;
+	gap: 8px;
+}
+
+.navTab {
+	background: linear-gradient(white, rgb(228, 227, 234));
+	border: 1px solid rgb(216, 217, 220);
+	border-radius: 10px;
+	color: rgb(121, 64, 22);
+	cursor: pointer;
+	font-size: 0.95rem;
+	font-weight: 600;
+	padding: 8px 14px;
+}
+
+.navTab.selected {
+	background: linear-gradient(rgb(153, 219, 68), rgb(112, 190, 18));
+	border-color: rgb(170, 221, 154);
+	color: white;
+}
+
+#themeToggle {
+	align-items: center;
+	background: linear-gradient(white, rgb(228, 227, 234));
+	border: 1px solid rgb(216, 217, 220);
+	border-radius: 8px;
+	color: rgb(121, 64, 22);
+	cursor: pointer;
+	display: flex;
+	height: 34px;
+	justify-content: center;
+	width: 34px;
+}
+
+#umasPane {
+	display: none;
+	padding: 4px 0 0 0;
+}
+
 #app {
 	display: grid;
 	gap: 20px;
